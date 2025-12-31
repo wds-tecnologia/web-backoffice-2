@@ -1,0 +1,12 @@
+node_modules
+.env
+# React
+build/
+*.log
+*.pid
+.DS_Store
+
+# Visual Studio Code
+.vscode/
+.settings/
+.idea/

@@ -1,0 +1,46 @@
+@page {
+    margin: 1.5cm;
+  }
+  
+  @media print {
+    /* Oculta tudo inicialmente */
+    body * {
+      visibility: hidden !important;
+    }
+  
+    /* Exibe apenas a planilha */
+    .overflow-auto,
+    .overflow-auto * {
+      visibility: visible !important;
+    }
+  
+    .overflow-auto {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: white !important;
+    }
+  
+    table {
+      width: 100% !important;
+      table-layout: fixed !important;
+      font-family: Calibri, sans-serif;
+      font-size: 12pt;
+    }
+  
+    td, th {
+      padding: 8px;
+      border: 1px solid #ccc;
+    }
+
+    tr {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+      
+      thead {
+        display: table-header-group;
+      }
+  }
+  

@@ -1,0 +1,94 @@
+{
+  "name": "br-backoffice-admin",
+  "version": "0.1.4",
+  "private": true,
+  "dependencies": {
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@fullcalendar/core": "^5.11.3",
+    "@fullcalendar/daygrid": "^5.11.3",
+    "@fullcalendar/interaction": "^5.11.3",
+    "@fullcalendar/list": "^5.11.3",
+    "@fullcalendar/react": "^5.11.2",
+    "@fullcalendar/timegrid": "^5.11.3",
+    "@headlessui/react": "^2.2.2",
+    "@mui/icons-material": "^5.17.1",
+    "@mui/material": "^5.17.1",
+    "@mui/system": "^7.1.0",
+    "@mui/x-data-grid": "^5.17.2",
+    "@mui/x-date-pickers": "^8.5.0",
+    "@nivo/bar": "^0.80.0",
+    "@nivo/core": "^0.79.0",
+    "@nivo/geo": "^0.80.0",
+    "@nivo/line": "^0.79.1",
+    "@nivo/pie": "^0.80.0",
+    "@reduxjs/toolkit": "^1.9.7",
+    "@tanstack/react-query": "^5.63.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/react": "^13.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/styled-components": "^5.1.34",
+    "antd": "^5.24.7",
+    "axios": "^1.7.9",
+    "caniuse-lite": "^1.0.30001751",
+    "chart.js": "^3.9.1",
+    "dayjs": "^1.11.13",
+    "formik": "^2.2.9",
+    "framer-motion": "^12.7.4",
+    "handsontable": "^15.2.0",
+    "html5-qrcode": "^2.3.8",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
+    "lodash.debounce": "^4.0.8",
+    "lucide-react": "^0.501.0",
+    "react": "^18.2.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-chartjs-2": "^4.3.1",
+    "react-datepicker": "^8.3.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.5.0",
+    "react-pro-sidebar": "^0.7.1",
+    "react-redux": "^8.1.3",
+    "react-router-dom": "^6.3.0",
+    "react-scripts": "5.0.1",
+    "recharts": "^2.15.3",
+    "shadcn-ui": "^0.9.5",
+    "styled-components": "^6.1.14",
+    "sweetalert2": "^11.19.1",
+    "web-vitals": "^2.1.4",
+    "xlsx": "^0.18.5",
+    "yup": "^0.32.11",
+    "zustand": "^5.0.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "@types/react-router-dom": "^5.3.3",
+    "typescript": "^5.7.3"
+  }
+}

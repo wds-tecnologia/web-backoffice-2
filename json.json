@@ -1,0 +1,53 @@
+{
+  "CRIAR_USUARIO": {
+    "enabled": true
+  },
+  "GERENCIAR_GRUPOS": {
+    "enabled": true
+  },
+  "GERENCIAR_TOKENS": {
+    "enabled": true,
+    "FORNECEDORES": [
+      "ATLAS"
+    ],
+    "RECOLHEDORES": [
+      "amarelo",
+      "DASY",
+      "FABIO"
+    ],
+    "OPERAÇÕES": false,
+    "LUCROS": false,
+    "LUCROS_RECOLHEDORES": false
+  },
+  "GERENCIAR_BOLETOS": {
+    "enabled": false
+  },
+  "GERENCIAR_INVOICES": {
+    "enabled": true,
+    "PRODUTOS": false,
+    "FORNECEDORES": false,
+    "FRETEIROS": false,
+    "OUTROS": false,
+    "MEDIA_DOLAR": false,
+    "RELATORIOS": false,
+    "CAIXAS": [
+      "angelita",
+      "RODOLFO"
+    ],
+    "CAIXAS_BR": [
+      "juquinha 3"
+    ]
+  },
+  "GERENCIAR_USUARIOS": {
+    "enabled": false
+  },
+  "GERENCIAR_OPERACOES": {
+    "enabled": false
+  },
+  "GERENCIAR_PLANILHAS": {
+    "enabled": false
+  },
+  "GERENCIAR_OPERADORES": {
+    "enabled": true
+  }
+}
