@@ -451,7 +451,9 @@ export const CaixasTabBrl = () => {
   };
 
   function isValidNumber(value: string): boolean {
-    const number = Number(value);
+    // Remove espaços e converte vírgula para ponto
+    const cleanedValue = value.replace(/\s/g, "").replace(/,/g, ".");
+    const number = Number(cleanedValue);
     return !isNaN(number) && isFinite(number);
   }
 
@@ -526,6 +528,9 @@ export const CaixasTabBrl = () => {
       const currentTime = now.toTimeString().split(" ")[0]; // HH:MM:SS
       const fullDate = new Date(`${formData.date}T${currentTime}`);
 
+      // Garantir que o valor seja convertido corretamente (aceita vírgula e ponto)
+      const numericValue = Number.parseFloat(formData.value.replace(/,/g, "."));
+
       setLoadingFetch3(true);
 
       // Mapeia o tipo de entidade para o valor esperado pela API
@@ -536,9 +541,9 @@ export const CaixasTabBrl = () => {
       };
 
       await api.post(`/invoice/box/transaction`, {
-        value: Math.abs(Number(formData.value)),
+        value: Math.abs(numericValue),
         entityId: selectedEntity.id,
-        direction: Number(formData.value) > 0 ? "IN" : "OUT",
+        direction: numericValue > 0 ? "IN" : "OUT",
         date: fullDate.toISOString(),
         description: formData.description,
         entityType: entityTypeMap[selectedEntity.typeInvoice as keyof typeof entityTypeMap] || "PARTNER", // Fallback seguro
@@ -897,7 +902,9 @@ export const CaixasTabBrl = () => {
                     }}
                     onBlur={(e) => {
                       if (valorRaw) {
-                        const numericValue = parseFloat(valorRaw);
+                        // Converte vírgula para ponto antes de fazer parse
+                        const cleanedValue = valorRaw.replace(/,/g, ".");
+                        const numericValue = parseFloat(cleanedValue);
                         if (!isNaN(numericValue)) {
                           // Formata mantendo o sinal negativo se existir
                           const formattedValue = numericValue.toLocaleString("en-US", {
@@ -914,7 +921,9 @@ export const CaixasTabBrl = () => {
                     onFocus={(e) => {
                       // Remove formatação quando o input recebe foco
                       if (valorRaw) {
-                        const numericValue = parseFloat(valorRaw.replace(/[^0-9.-]/g, ""));
+                        // Aceita vírgula e ponto, remove outros caracteres
+                        const cleanedValue = valorRaw.replace(/[^0-9.,-]/g, "").replace(/,/g, ".");
+                        const numericValue = parseFloat(cleanedValue);
                         if (!isNaN(numericValue)) {
                           setValorRaw(numericValue.toString());
                         }

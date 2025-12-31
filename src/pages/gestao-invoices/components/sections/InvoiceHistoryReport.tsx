@@ -1,4 +1,4 @@
-import { History, Eye, Edit, XIcon, RotateCcw, Check, Loader2, Trash, Undo2 } from "lucide-react";
+import { History, Eye, Edit, XIcon, RotateCcw, Check, Loader2, Trash, Undo2, AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../../../services/api";
 import { Invoice } from "../types/invoice"; // Se necessário, ajuste o caminho do tipo
@@ -134,8 +134,12 @@ export function InvoiceHistoryReport({
     invoiceProductId: null,
     productName: "",
   });
-  const [receiptHistory, setReceiptHistory] = useState<any[]>([]);
+  const [receiptHistory, setReceiptHistory] = useState<{
+    grouped: Array<{ date: string; quantity: number; entries: any[] }>;
+    all: any[];
+  }>({ grouped: [], all: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
   // const [invoices, setInvoices] = useState<InvoiceData[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -671,14 +675,14 @@ export function InvoiceHistoryReport({
                           <td className="px-4 py-2 text-sm text-right">{product.total.toFixed(2)}</td>
                           {isEditMode && (
                             <td className="px-4 py-2 text-sm text-right">
-                              <div className="flex justify-end items-center">
+                              <div className="flex justify-end items-center gap-2">
                                 <button
                                   onClick={() => setSelectedProductToAnalyze(product)}
                                   disabled={
                                     product.quantityAnalizer + product.quantityAnalizer >= product.quantity ||
                                     product.receivedQuantity >= product.quantity
                                   }
-                                  className={`ml-auto flex items-center gap-1 text-white px-2 py-1 rounded-md text-sm transition font-medium shadow-sm 
+                                  className={`flex items-center gap-1 text-white px-2 py-1 rounded-md text-sm transition font-medium shadow-sm 
                       ${
                         product.quantityAnalizer + product.quantityAnalizer >= product.quantity ||
                         product.receivedQuantity >= product.quantity
@@ -687,6 +691,92 @@ export function InvoiceHistoryReport({
                       }`}
                                 >
                                   <Check size={18} /> Analisar
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const result = await Swal.fire({
+                                      title: "Marcar como Perdido",
+                                      html: `
+                                        <div class="text-left">
+                                          <p class="mb-4">Produto: <strong>${products.find((item) => item.id === product.productId)?.name}</strong></p>
+                                          <label class="block text-sm font-medium mb-1">Quantidade Perdida:</label>
+                                          <input id="lostQuantity" type="number" step="0.01" value="${product.quantity - product.quantityAnalizer - product.receivedQuantity}" class="swal2-input" min="0.01" max="${product.quantity - product.quantityAnalizer - product.receivedQuantity}">
+                                          <label class="block text-sm font-medium mb-1 mt-3">% de Frete (opcional):</label>
+                                          <input id="freightPercentage" type="number" step="0.01" value="0" class="swal2-input" min="0" max="100" placeholder="0-100">
+                                          <label class="block text-sm font-medium mb-1 mt-3">Observações (opcional):</label>
+                                          <textarea id="notes" class="swal2-textarea" placeholder="Observações sobre o produto perdido"></textarea>
+                                        </div>
+                                      `,
+                                      showCancelButton: true,
+                                      confirmButtonText: "Marcar como Perdido",
+                                      cancelButtonText: "Cancelar",
+                                      buttonsStyling: false,
+                                      customClass: {
+                                        confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
+                                        cancelButton: "bg-gray-500 text-white hover:bg-gray-600 px-4 py-2 rounded font-semibold",
+                                      },
+                                      preConfirm: () => {
+                                        const quantity = (document.getElementById("lostQuantity") as HTMLInputElement)?.value;
+                                        const freightPercentage = (document.getElementById("freightPercentage") as HTMLInputElement)?.value;
+                                        const notes = (document.getElementById("notes") as HTMLTextAreaElement)?.value;
+                                        if (!quantity || Number.parseFloat(quantity) <= 0) {
+                                          Swal.showValidationMessage("Informe uma quantidade válida");
+                                          return false;
+                                        }
+                                        return { quantity, freightPercentage, notes };
+                                      },
+                                    });
+
+                                    if (result.isConfirmed && result.value) {
+                                      try {
+                                        setIsSavingId(product.id);
+                                        setIsSaving(true);
+                                        await api.post("/invoice/lost-products", {
+                                          invoiceProductId: product.id,
+                                          quantity: Number.parseFloat(result.value.quantity),
+                                          freightPercentage: result.value.freightPercentage
+                                            ? Number.parseFloat(result.value.freightPercentage)
+                                            : undefined,
+                                          notes: result.value.notes || undefined,
+                                        });
+
+                                        Swal.fire({
+                                          icon: "success",
+                                          title: "Sucesso!",
+                                          text: "Produto marcado como perdido.",
+                                          confirmButtonText: "Ok",
+                                          buttonsStyling: false,
+                                          customClass: {
+                                            confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+                                          },
+                                        });
+
+                                        const { data: updatedInvoices } = await api.get("/invoice/get");
+                                        const updated = updatedInvoices.find((i: InvoiceData) => i.id === product.invoiceId);
+                                        setInvoices(updatedInvoices);
+                                        setSelectedInvoice(updated || null);
+                                      } catch (error: any) {
+                                        console.error("Erro ao marcar produto como perdido:", error);
+                                        Swal.fire({
+                                          icon: "error",
+                                          title: "Erro!",
+                                          text: error?.response?.data?.message || "Não foi possível marcar o produto como perdido.",
+                                          confirmButtonText: "Ok",
+                                          buttonsStyling: false,
+                                          customClass: {
+                                            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+                                          },
+                                        });
+                                      } finally {
+                                        setIsSaving(false);
+                                        setIsSavingId("");
+                                      }
+                                    }
+                                  }}
+                                  className="flex items-center gap-1 text-white px-2 py-1 rounded-md text-sm transition font-medium shadow-sm bg-red-600 hover:bg-red-500"
+                                  title="Marcar como perdido"
+                                >
+                                  <AlertTriangle size={18} /> Perdido
                                 </button>
                               </div>
                             </td>
@@ -1058,12 +1148,14 @@ export function InvoiceHistoryReport({
                                   productName: products.find((item) => item.id === product.productId)?.name || "",
                                 });
                                 setLoadingHistory(true);
+                                setExpandedDate(null);
                                 try {
                                   const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
-                                  setReceiptHistory(response.data || []);
+                                  // API agora retorna { grouped: [...], all: [...] }
+                                  setReceiptHistory(response.data || { grouped: [], all: [] });
                                 } catch (error) {
                                   console.error("Erro ao buscar histórico:", error);
-                                  setReceiptHistory([]);
+                                  setReceiptHistory({ grouped: [], all: [] });
                                 } finally {
                                   setLoadingHistory(false);
                                 }
@@ -1344,40 +1436,75 @@ export function InvoiceHistoryReport({
               <div className="flex justify-center items-center py-8">
                 <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
               </div>
-            ) : receiptHistory.length === 0 ? (
+            ) : receiptHistory.grouped.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 Nenhum registro de recebimento encontrado.
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Quantidade Recebida
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {receiptHistory.map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm text-gray-700">
-                          {new Date(item.date).toLocaleDateString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
-                        </td>
-                        <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
-                          {item.quantity}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {receiptHistory.grouped.map((group, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedDate(expandedDate === group.date ? null : group.date)}
+                      className="w-full px-4 py-3 bg-gray-50 hover:bg-gray-100 flex items-center justify-between transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Eye size={18} className="text-blue-600" />
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-900">
+                            {new Date(group.date).toLocaleDateString("pt-BR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {group.entries.length} {group.entries.length === 1 ? "recebimento" : "recebimentos"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-bold text-green-600 text-lg">
+                          Qtd: {group.quantity}
+                        </span>
+                        <span className={`transform transition-transform ${expandedDate === group.date ? 'rotate-180' : ''}`}>
+                          ▼
+                        </span>
+                      </div>
+                    </button>
+                    {expandedDate === group.date && (
+                      <div className="bg-white border-t border-gray-200">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Horário
+                              </th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
+                                Quantidade
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {group.entries.map((entry: any, entryIndex: number) => (
+                              <tr key={entryIndex} className="hover:bg-gray-50">
+                                <td className="px-4 py-2 text-sm text-gray-700">
+                                  {new Date(entry.date).toLocaleTimeString("pt-BR", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
+                                  {entry.quantity}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -11,6 +11,7 @@ import { OtherPartnersTab } from "./components/sections/OtherPartners";
 import { Invoice } from "./components/types/invoice";
 import CaixasTabBrl from "./components/sections/CaixasBrl";
 import { ShoppingListsTab } from "./components/sections/ShoppingListsTab";
+import { LostProductsTab } from "./components/sections/LostProductsTab";
 import { usePermissionStore } from "../../store/permissionsStore";
 import { api } from "../../services/api";
 
@@ -25,6 +26,7 @@ export type TabType =
   | "others"
   | "caixas-brl"
   | "shopping-lists"
+  | "lost-products"
   | "";
 
 export const permissionTabMap: Record<string, TabType> = {
@@ -138,6 +140,7 @@ export default function InvocesManagement() {
           {activeTab === "caixas" && canShowTab("CAIXAS_PERMITIDOS") && <CaixasTab />}
           {activeTab === "caixas-brl" && canShowTab("CAIXAS_BR_PERMITIDOS") && <CaixasTabBrl />}
           {activeTab === "shopping-lists" && <ShoppingListsTab />}
+          {activeTab === "lost-products" && canShowTab("RELATORIOS") && <LostProductsTab />}
         </div>
       </div>
     </div>
