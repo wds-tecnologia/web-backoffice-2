@@ -732,7 +732,8 @@ export function InvoiceHistoryReport({
                                         setIsSavingId(product.id);
                                         setIsSaving(true);
                                         await api.post("/invoice/lost-products", {
-                                          invoiceProductId: product.id,
+                                          invoiceId: selectedInvoice.id,
+                                          productId: product.productId,
                                           quantity: Number.parseFloat(result.value.quantity),
                                           freightPercentage: result.value.freightPercentage
                                             ? Number.parseFloat(result.value.freightPercentage)
