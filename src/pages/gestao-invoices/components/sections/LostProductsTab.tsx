@@ -57,8 +57,11 @@ export function LostProductsTab() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<LostProduct | null>(null);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [formData, setFormData] = useState({
-    invoiceProductId: "",
+    invoiceId: "",
+    productId: "",
     quantity: "",
     freightPercentage: "",
     notes: "",
@@ -68,7 +71,24 @@ export function LostProductsTab() {
   useEffect(() => {
     fetchLostProducts();
     fetchSummary();
+    fetchInvoicesAndProducts();
   }, []);
+
+  const fetchInvoicesAndProducts = async () => {
+    try {
+      const [invoiceResponse, productsResponse] = await Promise.all([
+        api.get("/invoice/get"),
+        api.get("/invoice/product", { params: { limit: 1000 } }),
+      ]);
+      setInvoices(invoiceResponse.data || []);
+      const productsData = Array.isArray(productsResponse.data) 
+        ? productsResponse.data 
+        : productsResponse.data.products || [];
+      setProducts(productsData.filter((p: any) => p.active !== false));
+    } catch (error) {
+      console.error("Erro ao buscar invoices e produtos:", error);
+    }
+  };
 
   const fetchLostProducts = async () => {
     setIsLoading(true);
@@ -97,11 +117,11 @@ export function LostProductsTab() {
   };
 
   const handleCreate = async () => {
-    if (!formData.invoiceProductId || !formData.quantity) {
+    if (!formData.invoiceId || !formData.productId || !formData.quantity) {
       Swal.fire({
         icon: "error",
         title: "Erro!",
-        text: "Preencha todos os campos obrigatórios.",
+        text: "Preencha todos os campos obrigatórios (Invoice, Produto e Quantidade).",
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
@@ -114,7 +134,8 @@ export function LostProductsTab() {
     setIsSubmitting(true);
     try {
       await api.post("/invoice/lost-products", {
-        invoiceProductId: formData.invoiceProductId,
+        invoiceId: formData.invoiceId,
+        productId: formData.productId,
         quantity: Number.parseFloat(formData.quantity),
         freightPercentage: formData.freightPercentage ? Number.parseFloat(formData.freightPercentage) : undefined,
         notes: formData.notes || undefined,
@@ -127,7 +148,7 @@ export function LostProductsTab() {
       });
 
       setShowModal(false);
-      setFormData({ invoiceProductId: "", quantity: "", freightPercentage: "", notes: "" });
+      setFormData({ invoiceId: "", productId: "", quantity: "", freightPercentage: "", notes: "" });
       await fetchLostProducts();
       await fetchSummary();
     } catch (error: any) {
@@ -167,7 +188,7 @@ export function LostProductsTab() {
 
       setShowModal(false);
       setEditingProduct(null);
-      setFormData({ invoiceProductId: "", quantity: "", freightPercentage: "", notes: "" });
+      setFormData({ invoiceId: "", productId: "", quantity: "", freightPercentage: "", notes: "" });
       await fetchLostProducts();
       await fetchSummary();
     } catch (error: any) {
@@ -235,7 +256,8 @@ export function LostProductsTab() {
   const openEditModal = (product: LostProduct) => {
     setEditingProduct(product);
     setFormData({
-      invoiceProductId: product.invoiceProductId,
+      invoiceId: product.invoiceProduct.invoice.id,
+      productId: product.invoiceProduct.productId,
       quantity: product.quantity.toString(),
       freightPercentage: product.freightPercentage.toString(),
       notes: product.notes || "",
@@ -246,7 +268,7 @@ export function LostProductsTab() {
   const closeModal = () => {
     setShowModal(false);
     setEditingProduct(null);
-    setFormData({ invoiceProductId: "", quantity: "", freightPercentage: "", notes: "" });
+    setFormData({ invoiceId: "", productId: "", quantity: "", freightPercentage: "", notes: "" });
   };
 
   return (
@@ -384,40 +406,146 @@ export function LostProductsTab() {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           onClick={closeModal}
         >
-          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-md">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-medium mb-4">
               {editingProduct ? "Editar Produto Perdido" : "Registrar Produto Perdido"}
             </h3>
+            
+            {!editingProduct && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded-r">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Eye className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">📋 Como usar este formulário:</h4>
+                    <ol className="text-sm text-blue-700 space-y-2 list-decimal list-inside">
+                      <li>
+                        <strong>1. Selecione a Invoice:</strong> Escolha a nota fiscal onde o produto estava. 
+                        Você pode ver o número da invoice, fornecedor e data.
+                      </li>
+                      <li>
+                        <strong>2. Selecione o Produto:</strong> Após escolher a invoice, aparecerão os produtos dessa nota. 
+                        Escolha o produto que foi perdido. A lista mostra a quantidade pendente disponível.
+                      </li>
+                      <li>
+                        <strong>3. Informe a Quantidade:</strong> Digite quantas unidades desse produto foram perdidas. 
+                        O campo mostra automaticamente o máximo disponível.
+                      </li>
+                      <li>
+                        <strong>4. % de Frete (opcional):</strong> Se quiser aplicar uma porcentagem de frete no cálculo, 
+                        informe aqui (0-100). Deixe em branco se não quiser aplicar.
+                      </li>
+                      <li>
+                        <strong>5. Observações (opcional):</strong> Adicione qualquer informação adicional sobre o produto perdido.
+                      </li>
+                    </ol>
+                    <div className="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-800">
+                      <strong>💡 Dica:</strong> Você também pode marcar produtos como perdidos diretamente na lista de produtos pendentes 
+                      na aba "Relatórios", clicando no botão "Perdido" ao lado de cada produto.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-4">
               {!editingProduct && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    ID do Produto da Invoice <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.invoiceProductId}
-                    onChange={(e) => setFormData({ ...formData, invoiceProductId: e.target.value })}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
-                    disabled={isSubmitting}
-                    placeholder="ID do produto da invoice"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Invoice <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.invoiceId}
+                      onChange={(e) => setFormData({ ...formData, invoiceId: e.target.value, productId: "" })}
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
+                      disabled={isSubmitting}
+                    >
+                      <option value="">Selecione uma invoice</option>
+                      {invoices
+                        .filter((inv) => !inv.completed)
+                        .map((invoice) => (
+                          <option key={invoice.id} value={invoice.id}>
+                            {invoice.number} - {invoice.supplier?.name || "Sem fornecedor"} -{" "}
+                            {new Date(invoice.date).toLocaleDateString("pt-BR")}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Produto <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.productId}
+                      onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
+                      disabled={isSubmitting || !formData.invoiceId}
+                    >
+                      <option value="">{formData.invoiceId ? "Selecione um produto" : "Selecione primeiro uma invoice"}</option>
+                      {formData.invoiceId &&
+                        invoices
+                          .find((inv) => inv.id === formData.invoiceId)
+                          ?.products?.map((prod: any) => {
+                            const productInfo = products.find((p) => p.id === prod.productId);
+                            return (
+                              <option key={prod.id} value={prod.productId}>
+                                {productInfo?.name || `Produto ${prod.productId}`} - Qtd: {prod.quantity} - Pendente:{" "}
+                                {prod.quantity - (prod.receivedQuantity || 0) - (prod.quantityAnalizer || 0)}
+                              </option>
+                            );
+                          })}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Quantidade Perdida <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={formData.quantity}
+                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
+                      disabled={isSubmitting || !formData.productId}
+                      placeholder={
+                        formData.productId
+                          ? invoices
+                              .find((inv) => inv.id === formData.invoiceId)
+                              ?.products?.find((p: any) => p.productId === formData.productId)
+                              ? `Máx: ${
+                                  (invoices
+                                    .find((inv) => inv.id === formData.invoiceId)
+                                    ?.products?.find((p: any) => p.productId === formData.productId)?.quantity || 0) -
+                                  ((invoices
+                                    .find((inv) => inv.id === formData.invoiceId)
+                                    ?.products?.find((p: any) => p.productId === formData.productId)
+                                    ?.receivedQuantity || 0) +
+                                    (invoices
+                                      .find((inv) => inv.id === formData.invoiceId)
+                                      ?.products?.find((p: any) => p.productId === formData.productId)
+                                      ?.quantityAnalizer || 0))
+                                }`
+                          : "Quantidade perdida"
+                          : "Selecione produto primeiro"
+                      }
+                    />
+                  </div>
+                </>
               )}
-              {!editingProduct && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quantidade <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
-                    disabled={isSubmitting}
-                    placeholder="Quantidade perdida"
-                  />
+              {editingProduct && (
+                <div className="bg-gray-50 p-3 rounded-md">
+                  <p className="text-sm text-gray-600">
+                    <strong>Invoice:</strong> {editingProduct.invoiceProduct.invoice.number}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Produto:</strong> {editingProduct.invoiceProduct.product.name}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Quantidade:</strong> {editingProduct.quantity}
+                  </p>
                 </div>
               )}
               <div>
