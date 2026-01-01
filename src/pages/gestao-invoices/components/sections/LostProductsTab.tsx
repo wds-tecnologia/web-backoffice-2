@@ -406,10 +406,49 @@ export function LostProductsTab() {
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
           onClick={closeModal}
         >
-          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-md">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-medium mb-4">
               {editingProduct ? "Editar Produto Perdido" : "Registrar Produto Perdido"}
             </h3>
+            
+            {!editingProduct && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded-r">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <Eye className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div className="ml-3">
+                    <h4 className="text-sm font-semibold text-blue-800 mb-2">📋 Como usar este formulário:</h4>
+                    <ol className="text-sm text-blue-700 space-y-2 list-decimal list-inside">
+                      <li>
+                        <strong>1. Selecione a Invoice:</strong> Escolha a nota fiscal onde o produto estava. 
+                        Você pode ver o número da invoice, fornecedor e data.
+                      </li>
+                      <li>
+                        <strong>2. Selecione o Produto:</strong> Após escolher a invoice, aparecerão os produtos dessa nota. 
+                        Escolha o produto que foi perdido. A lista mostra a quantidade pendente disponível.
+                      </li>
+                      <li>
+                        <strong>3. Informe a Quantidade:</strong> Digite quantas unidades desse produto foram perdidas. 
+                        O campo mostra automaticamente o máximo disponível.
+                      </li>
+                      <li>
+                        <strong>4. % de Frete (opcional):</strong> Se quiser aplicar uma porcentagem de frete no cálculo, 
+                        informe aqui (0-100). Deixe em branco se não quiser aplicar.
+                      </li>
+                      <li>
+                        <strong>5. Observações (opcional):</strong> Adicione qualquer informação adicional sobre o produto perdido.
+                      </li>
+                    </ol>
+                    <div className="mt-3 p-2 bg-blue-100 rounded text-xs text-blue-800">
+                      <strong>💡 Dica:</strong> Você também pode marcar produtos como perdidos diretamente na lista de produtos pendentes 
+                      na aba "Relatórios", clicando no botão "Perdido" ao lado de cada produto.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <div className="space-y-4">
               {!editingProduct && (
                 <>
