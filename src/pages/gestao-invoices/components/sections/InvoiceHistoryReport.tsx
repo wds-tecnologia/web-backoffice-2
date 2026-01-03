@@ -817,6 +817,23 @@ export function InvoiceHistoryReport({
                                           );
                                           if (updatedInvoice) {
                                             setSelectedInvoice(updatedInvoice);
+
+                                            // Se invoice foi automaticamente concluída, fechar modal
+                                            if (updatedInvoice.completed && updatedInvoice.paid) {
+                                              setSelectedInvoice(null);
+                                              setIsModalOpen(false);
+                                              Swal.fire({
+                                                icon: "success",
+                                                title: "Invoice Concluída!",
+                                                text: "Todos os produtos foram processados e a invoice foi concluída automaticamente!",
+                                                confirmButtonText: "Ok",
+                                                buttonsStyling: false,
+                                                customClass: {
+                                                  confirmButton:
+                                                    "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+                                                },
+                                              });
+                                            }
                                           }
                                         }
                                       } catch (error: any) {
@@ -1090,7 +1107,26 @@ export function InvoiceHistoryReport({
 
                               const { data: updatedInvoices } = await api.get("/invoice/get");
                               setInvoices(updatedInvoices);
-                              setSelectedInvoice(updatedInvoices.find((i: any) => i.id === selectedInvoice.id) || null);
+                              const updatedInvoice = updatedInvoices.find((i: any) => i.id === selectedInvoice.id);
+                              setSelectedInvoice(updatedInvoice || null);
+
+                              // Se invoice foi automaticamente concluída, fechar modal
+                              if (updatedInvoice?.completed && updatedInvoice?.paid) {
+                                setSelectedInvoice(null);
+                                setIsModalOpen(false);
+                                Swal.fire({
+                                  icon: "success",
+                                  title: "Invoice Concluída!",
+                                  text: "Todos os produtos foram recebidos e a invoice foi concluída automaticamente!",
+                                  confirmButtonText: "Ok",
+                                  buttonsStyling: false,
+                                  customClass: {
+                                    confirmButton:
+                                      "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+                                  },
+                                });
+                              }
+
                               setIsSavingId(""); // encerra loading
                             }}
                             disabled={isSavingId === "all"}
