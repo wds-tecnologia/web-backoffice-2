@@ -655,7 +655,13 @@ export function InvoiceHistoryReport({
                   </thead>
                   <tbody id="modalInvoicePendingProducts" className="bg-white divide-y divide-gray-200">
                     {selectedInvoice.products
-                      .filter((item) => !item.received)
+                      .filter((item) => {
+                        // Não mostrar produtos recebidos
+                        if (item.received) return false;
+                        // Não mostrar produtos com quantidade disponível = 0
+                        const availableQuantity = item.quantity - item.quantityAnalizer - item.receivedQuantity;
+                        return availableQuantity > 0;
+                      })
                       .sort((a, b) => {
                         const productA = products.find((p) => p.id === a.productId);
                         const productB = products.find((p) => p.id === b.productId);
@@ -873,7 +879,11 @@ export function InvoiceHistoryReport({
                       </td>
                       <td className="px-4 py-2 text-sm text-right text-gray-800">
                         {selectedInvoice.products
-                          .filter((item) => !item.received)
+                          .filter((item) => {
+                            if (item.received) return false;
+                            const availableQuantity = item.quantity - item.quantityAnalizer - item.receivedQuantity;
+                            return availableQuantity > 0;
+                          })
                           .reduce(
                             (sum, item) => sum + (item.quantity - item.quantityAnalizer - item.receivedQuantity),
                             0
@@ -882,7 +892,11 @@ export function InvoiceHistoryReport({
                       <td className="px-4 py-2 text-sm text-right text-gray-800">—</td>
                       <td className="px-4 py-2 text-sm text-right text-gray-800">
                         {selectedInvoice.products
-                          .filter((item) => !item.received)
+                          .filter((item) => {
+                            if (item.received) return false;
+                            const availableQuantity = item.quantity - item.quantityAnalizer - item.receivedQuantity;
+                            return availableQuantity > 0;
+                          })
                           .reduce(
                             (sum, item) =>
                               sum + item.weight * (item.quantity - item.quantityAnalizer - item.receivedQuantity),
@@ -892,7 +906,11 @@ export function InvoiceHistoryReport({
                       </td>
                       <td className="px-4 py-2 text-sm text-right text-gray-800">
                         {selectedInvoice.products
-                          .filter((item) => !item.received)
+                          .filter((item) => {
+                            if (item.received) return false;
+                            const availableQuantity = item.quantity - item.quantityAnalizer - item.receivedQuantity;
+                            return availableQuantity > 0;
+                          })
                           .reduce((sum, item) => sum + item.total, 0)
                           .toLocaleString("pt-BR", {
                             minimumFractionDigits: 2,
