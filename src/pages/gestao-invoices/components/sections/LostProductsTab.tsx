@@ -168,25 +168,49 @@ export function LostProductsTab() {
 
   const handleComplete = async (date: string, products: LostProduct[]) => {
     const freightPercentage = freightPercentages[date] || 0;
+    const subtotal = products.reduce((sum, p) => sum + p.refundValue, 0);
+    const freightValue = subtotal * (freightPercentage / 100);
+    const total = subtotal + freightValue;
     
     const { value: carrierId } = await Swal.fire({
       title: "Finalizar Lista de Produtos Perdidos",
-      text: `Selecione o transportador para creditar o valor total (${formatCurrency(
-        products.reduce((sum, p) => sum + p.refundValue, 0)
-      )}):`,
-      input: "select",
-      inputOptions: carriers.reduce((acc: any, carrier) => {
-        acc[carrier.id] = carrier.name;
-        return acc;
-      }, {}),
-      inputPlaceholder: "Selecione um transportador",
+      html: `
+        <div style="text-align: left; padding: 0.5rem 0;">
+          <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: #eff6ff; border-radius: 0.5rem; border-left: 4px solid #3b82f6;">
+            <p style="margin: 0; font-size: 0.875rem; color: #1e40af; font-weight: 600;">Valor Total a Creditar:</p>
+            <p style="margin: 0.25rem 0 0 0; font-size: 1.5rem; font-weight: 700; color: #1e3a8a;">${formatCurrency(total)}</p>
+          </div>
+          <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">Selecione o transportador:</label>
+          <select id="carrierSelect" style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; transition: border-color 0.2s; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#d1d5db'">
+            <option value="">Selecione um transportador</option>
+            ${carriers.map((carrier) => `<option value="${carrier.id}">${carrier.name}</option>`).join("")}
+          </select>
+        </div>
+      `,
+      width: "500px",
       showCancelButton: true,
       confirmButtonText: "Finalizar",
       cancelButtonText: "Cancelar",
-      inputValidator: (value) => {
-        if (!value) {
-          return "Você precisa selecionar um transportador";
+      buttonsStyling: false,
+      customClass: {
+        popup: "rounded-lg",
+        confirmButton: "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold mr-2 transition-colors shadow-md",
+        cancelButton: "bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+      },
+      didOpen: () => {
+        const select = document.getElementById("carrierSelect") as HTMLSelectElement;
+        if (select) {
+          select.focus();
         }
+      },
+      preConfirm: () => {
+        const select = document.getElementById("carrierSelect") as HTMLSelectElement;
+        const value = select?.value;
+        if (!value) {
+          Swal.showValidationMessage("Você precisa selecionar um transportador");
+          return false;
+        }
+        return value;
       },
     });
 
@@ -217,10 +241,15 @@ export function LostProductsTab() {
         return newSet;
       });
 
-      setOpenNotification({
-        type: "success",
+      Swal.fire({
+        icon: "success",
         title: "Sucesso!",
-        notification: "Lista de produtos perdidos finalizada e valor creditado no caixa!",
+        text: "Lista de produtos perdidos finalizada e valor creditado no caixa!",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+        },
       });
     } catch (error: any) {
       console.error("Erro ao finalizar lista:", error);
@@ -229,6 +258,10 @@ export function LostProductsTab() {
         title: "Erro!",
         text: error?.response?.data?.message || "Não foi possível finalizar a lista.",
         confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+        },
       });
     } finally {
       setIsSubmitting(false);
@@ -270,40 +303,59 @@ export function LostProductsTab() {
                 key={date}
                 className={`border rounded-lg transition-all duration-300 ${
                   isCompleted
-                    ? "bg-green-50 border-green-200"
+                    ? "bg-blue-50 border-blue-200"
                     : "bg-white border-gray-200"
                 }`}
               >
                 {/* Header clicável */}
                 <div
                   onClick={() => toggleExpand(date)}
-                  className={`p-4 cursor-pointer transition-all duration-200 flex justify-between items-start ${
-                    isExpanded ? "bg-opacity-100" : "hover:bg-opacity-90"
+                  className={`p-4 cursor-pointer transition-all duration-200 ${
+                    isCompleted
+                      ? "bg-blue-50 hover:bg-blue-100"
+                      : "bg-red-50 hover:bg-red-100"
                   }`}
-                  style={{
-                    backgroundColor: isCompleted
-                      ? "rgba(34, 197, 94, 0.1)"
-                      : "rgba(239, 68, 68, 0.1)",
-                  }}
                 >
-                  <div className="flex-1 flex items-start gap-3">
-                    <div className={`mt-1 transition-transform duration-300 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
-                      <ChevronDown className="text-gray-600" size={20} />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-gray-800">
-                        Perdidos {date}
-                      </h3>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {dateProducts.length} produto{dateProducts.length !== 1 ? "s" : ""}
-                      </p>
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 flex items-start gap-3">
+                      <div className={`mt-1 transition-transform duration-300 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
+                        <ChevronDown className="text-gray-600" size={20} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-semibold text-gray-800">
+                            Perdidos {date}
+                          </h3>
+                          {isCompleted && (
+                            <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                              ✅ Concluída
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <p className="text-gray-600">
+                            {dateProducts.length} produto{dateProducts.length !== 1 ? "s" : ""}
+                          </p>
+                          {!isExpanded && (
+                            <>
+                              <span className="text-gray-400">•</span>
+                              <p className="text-gray-700 font-medium">
+                                Subtotal: <span className="font-semibold">{formatCurrency(subtotal)}</span>
+                              </p>
+                              <span className="text-gray-400">•</span>
+                              <p className="text-gray-700 font-medium">
+                                Frete: <span className="font-semibold">{freightPercentage.toFixed(2)}%</span>
+                              </p>
+                              <span className="text-gray-400">•</span>
+                              <p className="text-blue-700 font-medium">
+                                Total: <span className="font-bold">{formatCurrency(total)}</span>
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  {isCompleted && (
-                    <span className="px-3 py-1 bg-green-500 text-white text-xs font-semibold rounded-full">
-                      ✅ Concluída
-                    </span>
-                  )}
                 </div>
 
                 {/* Conteúdo expandível */}
