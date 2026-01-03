@@ -699,23 +699,19 @@ export function InvoiceHistoryReport({
                                       title: "Marcar como Perdido",
                                       html: `
                                         <div class="text-left">
-                                          <p class="mb-4">Produto: <strong>${
+                                          <p class="mb-4 text-gray-700">Produto: <strong class="text-gray-900">${
                                             products.find((item) => item.id === product.productId)?.name
                                           }</strong></p>
-                                          <label class="block text-sm font-medium mb-1">Quantidade Perdida:</label>
+                                          <label class="block text-sm font-medium text-gray-700 mb-2">Quantidade Perdida:</label>
                                           <input id="lostQuantity" type="number" step="1" value="${Math.floor(
                                             product.quantity - product.quantityAnalizer - product.receivedQuantity
                                           )}" class="swal2-input" min="1" max="${Math.floor(
                                         product.quantity - product.quantityAnalizer - product.receivedQuantity
-                                      )}">
-                                          <label class="block text-sm font-medium mb-1 mt-3">% de Frete (opcional):</label>
-                                          <input id="freightPercentage" type="number" step="0.01" value="0" class="swal2-input" min="0" max="100" placeholder="0-100">
-                                          <label class="block text-sm font-medium mb-1 mt-3">Observações (opcional):</label>
-                                          <textarea id="notes" class="swal2-textarea" placeholder="Observações sobre o produto perdido"></textarea>
+                                      )}" placeholder="Digite a quantidade">
                                         </div>
                                       `,
                                       showCancelButton: true,
-                                      confirmButtonText: "Marcar como Perdido",
+                                      confirmButtonText: "Confirmar",
                                       cancelButtonText: "Cancelar",
                                       buttonsStyling: false,
                                       customClass: {
@@ -727,10 +723,6 @@ export function InvoiceHistoryReport({
                                       preConfirm: () => {
                                         const quantity = (document.getElementById("lostQuantity") as HTMLInputElement)
                                           ?.value;
-                                        const freightPercentage = (
-                                          document.getElementById("freightPercentage") as HTMLInputElement
-                                        )?.value;
-                                        const notes = (document.getElementById("notes") as HTMLTextAreaElement)?.value;
                                         const quantityInt = Number.parseInt(quantity || "0", 10);
                                         if (!quantity || quantityInt <= 0 || !Number.isInteger(quantityInt)) {
                                           Swal.showValidationMessage(
@@ -738,7 +730,7 @@ export function InvoiceHistoryReport({
                                           );
                                           return false;
                                         }
-                                        return { quantity: quantityInt.toString(), freightPercentage, notes };
+                                        return { quantity: quantityInt.toString(), freightPercentage: "0", notes: "" };
                                       },
                                     });
 
@@ -750,10 +742,8 @@ export function InvoiceHistoryReport({
                                           invoiceId: selectedInvoice.id,
                                           productId: product.productId,
                                           quantity: Number.parseInt(result.value.quantity, 10),
-                                          freightPercentage: result.value.freightPercentage
-                                            ? Number.parseFloat(result.value.freightPercentage)
-                                            : undefined,
-                                          notes: result.value.notes || undefined,
+                                          freightPercentage: 0,
+                                          notes: undefined,
                                         });
 
                                         Swal.fire({

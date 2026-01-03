@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { AlertTriangle, Edit, Trash2, Plus, Loader2, Eye } from "lucide-react";
+import { AlertTriangle, Edit, Trash2, Plus, Loader2, Eye, CheckCircle } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
 import { formatCurrency } from "../../../cambiobackoffice/formatCurrencyUtil";
+import { usePermissionStore } from "../../../../store/permissionsStore";
 
 interface LostProduct {
   id: string;
@@ -59,6 +60,7 @@ export function LostProductsTab() {
   const [editingProduct, setEditingProduct] = useState<LostProduct | null>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [carriers, setCarriers] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     invoiceId: "",
     productId: "",
@@ -67,6 +69,7 @@ export function LostProductsTab() {
     notes: "",
   });
   const { setOpenNotification } = useNotification();
+  const { user } = usePermissionStore();
 
   useEffect(() => {
     fetchLostProducts();
@@ -76,15 +79,17 @@ export function LostProductsTab() {
 
   const fetchInvoicesAndProducts = async () => {
     try {
-      const [invoiceResponse, productsResponse] = await Promise.all([
+      const [invoiceResponse, productsResponse, carriersResponse] = await Promise.all([
         api.get("/invoice/get"),
         api.get("/invoice/product", { params: { limit: 1000 } }),
+        api.get("/invoice/carriers"),
       ]);
       setInvoices(invoiceResponse.data || []);
       const productsData = Array.isArray(productsResponse.data) 
         ? productsResponse.data 
         : productsResponse.data.products || [];
       setProducts(productsData.filter((p: any) => p.active !== false));
+      setCarriers(carriersResponse.data || []);
     } catch (error) {
       console.error("Erro ao buscar invoices e produtos:", error);
     }
@@ -289,8 +294,8 @@ export function LostProductsTab() {
         </button> */}
       </div>
 
-      {/* Resumo */}
-      {summary && (
+      {/* Resumo - Cards comentados temporariamente */}
+      {/* {summary && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-red-50 p-4 rounded-lg border border-red-200">
             <p className="text-sm text-gray-600">Total de Produtos Perdidos</p>
@@ -309,7 +314,7 @@ export function LostProductsTab() {
             </p>
           </div>
         </div>
-      )}
+      )} */}
 
       {isLoading ? (
         <div className="flex justify-center items-center py-8">
@@ -337,13 +342,7 @@ export function LostProductsTab() {
                   Quantidade
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  % Frete
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Valor Frete
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Valor Total
+                  Valor Individual
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Valor a Receber
@@ -368,14 +367,12 @@ export function LostProductsTab() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                     {product.quantity}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {product.freightPercentage}%
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                    {formatCurrency(product.freightValue)}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
-                    {formatCurrency((product.invoiceProduct?.value || 0) * product.quantity)}
+                    {formatCurrency(
+                      product.invoiceProduct?.value && product.invoiceProduct?.quantity > 0
+                        ? product.invoiceProduct.value / product.invoiceProduct.quantity
+                        : 0
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-right">
                     {formatCurrency(product.refundValue)}
@@ -389,6 +386,70 @@ export function LostProductsTab() {
                         title="Editar"
                       >
                         <Edit size={16} />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const { value: carrierId } = await Swal.fire({
+                            title: "Finalizar Produto Perdido",
+                            text: "Selecione o transportador para creditar o valor:",
+                            input: "select",
+                            inputOptions: carriers.reduce((acc: any, carrier) => {
+                              acc[carrier.id] = carrier.name;
+                              return acc;
+                            }, {}),
+                            inputPlaceholder: "Selecione um transportador",
+                            showCancelButton: true,
+                            confirmButtonText: "Finalizar",
+                            cancelButtonText: "Cancelar",
+                            inputValidator: (value) => {
+                              if (!value) {
+                                return "Você precisa selecionar um transportador";
+                              }
+                            },
+                          });
+                          
+                          if (carrierId) {
+                            try {
+                              setIsSubmitting(true);
+                              // Criar transação no caixa do transportador
+                              await api.post("/invoice/box/transaction", {
+                                value: product.refundValue,
+                                entityId: carrierId,
+                                direction: "IN",
+                                date: new Date().toISOString(),
+                                description: "mercadoria perdida",
+                                entityType: "CARRIER",
+                                userId: user?.id,
+                              });
+                              
+                              // TODO: Chamar endpoint para finalizar produto perdido quando backend implementar
+                              // await api.post(`/invoice/lost-products/${product.id}/finalize`, { carrierId });
+                              
+                              setOpenNotification({
+                                type: "success",
+                                title: "Sucesso!",
+                                notification: "Produto perdido finalizado e valor creditado no caixa!",
+                              });
+                              
+                              await fetchLostProducts();
+                            } catch (error: any) {
+                              console.error("Erro ao finalizar produto perdido:", error);
+                              Swal.fire({
+                                icon: "error",
+                                title: "Erro!",
+                                text: error?.response?.data?.message || "Não foi possível finalizar o produto perdido.",
+                                confirmButtonText: "Ok",
+                              });
+                            } finally {
+                              setIsSubmitting(false);
+                            }
+                          }
+                        }}
+                        className="text-green-600 hover:text-green-900"
+                        disabled={isSubmitting}
+                        title="Finalizar"
+                      >
+                        <CheckCircle size={16} />
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
