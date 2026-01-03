@@ -121,6 +121,12 @@ if (invoice.paid && invoice.products.length === 0 && !invoice.completed) {
 3. ✅ Invoice não paga com produtos → marca todos como perdidos → invoice NÃO deve ficar concluída (só paga pode ficar concluída)
 4. ✅ Invoice paga com produtos → marca alguns como perdidos (não todos) → invoice NÃO deve ficar concluída
 
+## Observação Importante
+
+**IMPORTANTE:** Esta conclusão deve ser **AUTOMÁTICA**, sem necessidade de confirmação do usuário. Quando todos os produtos são marcados como perdidos e não há produtos em análise, a invoice deve ser marcada como concluída imediatamente, sem esperar qualquer ação adicional do usuário.
+
+Veja também: `PROMPT_BACKEND_INVOICE_AUTO_COMPLETAR_SEM_ANALISE.md` para detalhes sobre auto-conclusão.
+
 ## Prioridade
 
 **ALTA** - Está causando inconsistência no estado das invoices.
