@@ -1,10 +1,35 @@
-# 🔧 Correção Crítica - Produto Perdido Parcial Deve Reduzir Quantidade, Não Deletar
+# ⚠️ ATENÇÃO - Este Prompt Foi SUBSTITUÍDO
 
-## Problema Crítico
+## Status: DEPRECATED / SUBSTITUÍDO
+
+Este prompt foi **substituído** por `PROMPT_BACKEND_PRODUTOS_PERDIDOS_SEMPRE_REMOVER.md`.
+
+**Nova Regra:** Todos os produtos marcados como perdidos devem ser **SEMPRE DELETADOS** da invoice, independentemente de ser perda parcial ou total.
+
+## Motivo da Mudança
+
+Após feedback do usuário, foi identificado que:
+
+- Comportamento atual é **inconsistente**: alguns produtos ficam com quantidade 0, outros somem
+- Usuário prefere que **TODOS os produtos perdidos saiam completamente** da lista
+- Produtos com quantidade 0 causam problemas na interface (botões bloqueados)
+
+## Novo Comportamento
+
+- ✅ Produto marcado como perdido → **SEMPRE deletado** da invoice
+- ✅ Não importa se é perda parcial ou total
+- ✅ Produto **sai completamente** da lista de produtos pendentes
+- ✅ Produto aparece **apenas** na lista de produtos perdidos
+
+---
+
+# 🔧 (HISTÓRICO) Correção Crítica - Produto Perdido Parcial Deve Reduzir Quantidade, Não Deletar
+
+## Problema Crítico (ANTIGO - Não mais aplicável)
 
 Quando um produto é marcado como perdido com **quantidade PARCIAL** (menor que a quantidade total), o backend está **deletando o produto inteiro** da invoice, quando deveria apenas **reduzir a quantidade**.
 
-### Exemplo do Problema
+### Exemplo do Problema (ANTIGO)
 
 **Cenário:**
 
@@ -13,7 +38,7 @@ Quando um produto é marcado como perdido com **quantidade PARCIAL** (menor que 
 - **Comportamento Atual (ERRADO):**
   - Produto é **DELETADO completamente** da invoice
   - As **4 unidades restantes somem** (não aparecem em lugar nenhum)
-- **Comportamento Esperado (CORRETO):**
+- **Comportamento Esperado (ANTIGO - não mais aplicável):**
   - Produto deve continuar na invoice com **4 unidades** (6 - 2 = 4)
   - Apenas as 2 unidades perdidas vão para a lista de produtos perdidos
   - As 4 unidades restantes continuam disponíveis para análise/recebimento

@@ -22,27 +22,37 @@ Atualmente, quando um produto é marcado como perdido via `POST /invoice/lost-pr
 
 ## Solução Necessária
 
-### Opção 1: Deletar o InvoiceProduct (Recomendado se produto foi totalmente perdido)
+### Sempre Deletar o InvoiceProduct (Recomendado)
+
+**IMPORTANTE:** Todos os produtos marcados como perdidos devem ser **SEMPRE DELETADOS** da invoice, independentemente de ser perda parcial ou total. Isso garante consistência na interface.
 
 ```typescript
 // No endpoint POST /invoice/lost-products
 await prisma.lostProduct.create({...});
 
-// Se a quantidade perdida é igual à quantidade total do produto
-if (quantityLost >= invoiceProduct.quantity) {
-  await prisma.invoiceProduct.delete({
-    where: { id: invoiceProductId }
-  });
-}
+// SEMPRE deletar o produto da invoice (não importa se perda parcial ou total)
+await prisma.invoiceProduct.delete({
+  where: { id: invoiceProductId }
+});
 ```
 
-### Opção 2: Reduzir Quantidade (Se produto pode ser parcialmente perdido)
+**Por quê sempre deletar?**
+
+- Garante consistência: todos os produtos perdidos somem da lista
+- Evita confusão: produto com quantidade 0 bloqueia botões e causa problemas na UI
+- UX mais limpa: produtos perdidos devem sair completamente da lista
+- Simplicidade: não precisa lidar com lógica de redução parcial
+
+Veja também: `PROMPT_BACKEND_PRODUTOS_PERDIDOS_SEMPRE_REMOVER.md` para mais detalhes.
+
+### Opção Alternativa (NÃO RECOMENDADA - Mantida apenas para referência histórica): Reduzir Quantidade
 
 ```typescript
 // No endpoint POST /invoice/lost-products
 await prisma.lostProduct.create({...});
 
 // Reduzir a quantidade do produto na invoice
+// ATENÇÃO: Isso causa inconsistência - alguns produtos ficam com quantidade 0
 await prisma.invoiceProduct.update({
   where: { id: invoiceProductId },
   data: {
@@ -52,7 +62,7 @@ await prisma.invoiceProduct.update({
 });
 ```
 
-### Opção 3: Marcar como Perdido (Flag)
+### Opção 3: Marcar como Perdido (Flag) - DEPRECATED
 
 ```typescript
 // Adicionar campo `lost` no modelo InvoiceProduct
@@ -91,4 +101,3 @@ where: {
 ## Prioridade
 
 **MÉDIA** - Melhora a organização, mas não bloqueia funcionalidade atual.
-
