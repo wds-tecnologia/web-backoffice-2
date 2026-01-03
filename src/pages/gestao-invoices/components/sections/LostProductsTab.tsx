@@ -159,11 +159,25 @@ export function LostProductsTab() {
   };
 
   const handleFreightChange = (date: string, value: string) => {
-    const numValue = Number.parseFloat(value) || 0;
-    setFreightPercentages((prev) => ({
-      ...prev,
-      [date]: numValue,
-    }));
+    // Permitir apenas números e ponto decimal, remover vírgulas
+    const cleanValue = value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+    
+    // Se estiver vazio, definir como string vazia (não zero)
+    if (cleanValue === "" || cleanValue === ".") {
+      setFreightPercentages((prev) => ({
+        ...prev,
+        [date]: 0,
+      }));
+      return;
+    }
+    
+    const numValue = Number.parseFloat(cleanValue);
+    if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+      setFreightPercentages((prev) => ({
+        ...prev,
+        [date]: numValue,
+      }));
+    }
   };
 
   const handleComplete = async (date: string, products: LostProduct[]) => {
@@ -365,22 +379,22 @@ export function LostProductsTab() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Produto
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Invoice
                             </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Fornecedor
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Quantidade
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Valor Individual
                             </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Valor a Receber
                             </th>
                           </tr>
@@ -388,22 +402,22 @@ export function LostProductsTab() {
                         <tbody className="bg-white divide-y divide-gray-200">
                           {dateProducts.map((product) => (
                             <tr key={product.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
                                 {product.invoiceProduct?.product?.name || "Produto não encontrado"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                 {product.invoiceProduct?.invoice?.number || "—"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                 {product.invoiceProduct?.invoice?.supplier?.name || "—"}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
                                 {product.quantity}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">
                                 {formatCurrency(product.invoiceProduct?.value || 0)}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-right">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-center">
                                 {formatCurrency(product.refundValue)}
                               </td>
                             </tr>
@@ -426,13 +440,13 @@ export function LostProductsTab() {
                             Frete (%):
                           </label>
                           <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            max="100"
-                            value={freightPercentage}
+                            type="text"
+                            inputMode="decimal"
+                            value={freightPercentage > 0 ? freightPercentage.toString() : ""}
                             onChange={(e) => handleFreightChange(date, e.target.value)}
+                            onWheel={(e) => e.currentTarget.blur()}
                             disabled={isCompleted || isSubmitting}
+                            placeholder="0.00"
                             className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                           />
                         </div>
