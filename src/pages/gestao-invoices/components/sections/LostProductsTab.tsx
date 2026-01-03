@@ -155,16 +155,55 @@ export function LostProductsTab() {
       }
     });
 
-    // Agrupar produtos concluídos: agrupar por completedDate
-    // IMPORTANTE: Produtos com o mesmo completedDate pertencem à mesma lista concluída
+    // Agrupar produtos concluídos: usar completedDate + updatedAt para diferenciar listas
+    // Produtos concluídos juntos (mesma lista) terão updatedAt muito próximo (mesmo timestamp de conclusão)
+    // Vamos agrupar por completedDate + intervalo de tempo do updatedAt
     const concludedGrouped: Record<string, LostProduct[]> = {};
+
+    // Agrupar produtos por completedDate primeiro
+    const byCompletedDate: Record<string, LostProduct[]> = {};
     concludedProducts.forEach((product) => {
       const date = product.completedDate!;
-      const key = `CONCLUIDA_${date}`;
-      if (!concludedGrouped[key]) {
-        concludedGrouped[key] = [];
+      if (!byCompletedDate[date]) {
+        byCompletedDate[date] = [];
       }
-      concludedGrouped[key].push(product);
+      byCompletedDate[date].push(product);
+    });
+
+    // Para cada completedDate, separar em grupos baseados no updatedAt (timestamp de conclusão)
+    Object.keys(byCompletedDate).forEach((date) => {
+      const products = byCompletedDate[date];
+      // Ordenar por updatedAt
+      const sorted = [...products].sort((a, b) => new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime());
+
+      // Agrupar produtos com updatedAt próximo (mesmos 10 segundos = mesma conclusão)
+      const groups: LostProduct[][] = [];
+      let currentGroup: LostProduct[] = [];
+      let lastUpdatedAt: number | null = null;
+
+      sorted.forEach((product) => {
+        const updatedAt = new Date(product.updatedAt).getTime();
+        if (lastUpdatedAt === null || Math.abs(updatedAt - lastUpdatedAt) < 10000) {
+          // Mesmo grupo (diferença < 10 segundos)
+          currentGroup.push(product);
+        } else {
+          // Novo grupo
+          if (currentGroup.length > 0) {
+            groups.push(currentGroup);
+          }
+          currentGroup = [product];
+        }
+        lastUpdatedAt = updatedAt;
+      });
+      if (currentGroup.length > 0) {
+        groups.push(currentGroup);
+      }
+
+      // Criar chaves únicas para cada grupo
+      groups.forEach((group, index) => {
+        const key = `CONCLUIDA_${date}_${index}`;
+        concludedGrouped[key] = group;
+      });
     });
 
     // Agrupar produtos ativos por data de criação (timezone Brasil)
@@ -189,7 +228,9 @@ export function LostProductsTab() {
     Object.keys(grouped).forEach((key) => {
       const products = grouped[key];
       if (key.startsWith("CONCLUIDA_")) {
-        const date = key.replace("CONCLUIDA_", "");
+        // Remover prefixo CONCLUIDA_ e hash, deixando apenas a data
+        const parts = key.replace("CONCLUIDA_", "").split("_");
+        const date = parts[0]; // A data é a primeira parte
         displayGrouped[key] = products;
         dateLabels[key] = date;
       } else if (key.startsWith("ATIVA_")) {
@@ -280,20 +321,7 @@ export function LostProductsTab() {
     }
 
     const freightPercentage = confirmedFreightPercentages[dateKey] || 0;
-    if (!freightPercentage && !isAlreadyCompleted) {
-      Swal.fire({
-        icon: "warning",
-        title: "Aviso!",
-        text: "Você precisa confirmar o frete antes de concluir a lista.",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton:
-            "bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
-        },
-      });
-      return;
-    }
+    // Removida validação de frete - permite concluir com frete zerado
     const subtotal = products.reduce((sum, p) => sum + p.refundValue, 0);
     const freightValue = subtotal * (freightPercentage / 100);
     const total = subtotal + freightValue;
@@ -530,11 +558,20 @@ export function LostProductsTab() {
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot>
+                          <tr className="bg-blue-100 font-semibold">
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">Subtotal</td>
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">—</td>
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">—</td>
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">
+                              {dateProducts.reduce((sum, p) => sum + p.quantity, 0)}
+                            </td>
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">—</td>
+                            <td className="px-6 py-3 text-sm text-gray-800 text-center">{formatCurrency(subtotal)}</td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
-
-                    {/* Linha azul com Subtotal */}
-                    <div className="bg-blue-100 px-4 py-2 font-semibold text-sm text-gray-800">Subtotal</div>
 
                     {/* Cards de Frete e Concluir Lista */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
