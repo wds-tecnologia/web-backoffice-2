@@ -14,6 +14,7 @@ interface LostProduct {
   freightValue: number;
   refundValue: number;
   notes?: string;
+  completedDate?: string | null; // Data "DD/MM/YYYY" quando lista foi concluída
   createdAt: string;
   updatedAt: string;
   invoiceProduct: {
@@ -70,9 +71,19 @@ export function LostProductsTab() {
   });
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [freightPercentages, setFreightPercentages] = useState<Record<string, number>>({});
-  const [completedDates, setCompletedDates] = useState<Set<string>>(new Set());
   const { setOpenNotification } = useNotification();
   const { user } = usePermissionStore();
+
+  // Helper para converter data UTC para timezone do Brasil (UTC-3) e retornar como "DD/MM/YYYY"
+  const getBrazilDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    // Converter para timezone do Brasil (America/Sao_Paulo = UTC-3)
+    const brazilDate = new Date(date.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const day = String(brazilDate.getDate()).padStart(2, "0");
+    const month = String(brazilDate.getMonth() + 1).padStart(2, "0");
+    const year = brazilDate.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
 
   useEffect(() => {
     fetchLostProducts();
@@ -124,12 +135,14 @@ export function LostProductsTab() {
     }
   };
 
-  // Agrupar produtos por data
+  // Agrupar produtos por data (considerando completedDate ou createdAt)
   const groupProductsByDate = () => {
     const grouped: Record<string, LostProduct[]> = {};
     
     lostProducts.forEach((product) => {
-      const date = new Date(product.createdAt).toLocaleDateString("pt-BR");
+      // Se tem completedDate, usa completedDate (lista concluída)
+      // Se não tem, usa createdAt convertido para timezone Brasil
+      const date = product.completedDate || getBrazilDate(product.createdAt);
       if (!grouped[date]) {
         grouped[date] = [];
       }
@@ -181,6 +194,22 @@ export function LostProductsTab() {
   };
 
   const handleComplete = async (date: string, products: LostProduct[]) => {
+    // Verificar se já está concluída (todos os produtos têm completedDate igual a date)
+    const isAlreadyCompleted = products.every(p => p.completedDate === date);
+    if (isAlreadyCompleted) {
+      Swal.fire({
+        icon: "warning",
+        title: "Aviso!",
+        text: "Esta lista já foi concluída anteriormente.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+        },
+      });
+      return;
+    }
+
     const freightPercentage = freightPercentages[date] || 0;
     const subtotal = products.reduce((sum, p) => sum + p.refundValue, 0);
     const freightValue = subtotal * (freightPercentage / 100);
@@ -233,27 +262,15 @@ export function LostProductsTab() {
     try {
       setIsSubmitting(true);
       
-      // Calcular total com frete
-      const subtotal = products.reduce((sum, p) => sum + p.refundValue, 0);
-      const freightValue = subtotal * (freightPercentage / 100);
-      const total = subtotal + freightValue;
-
-      // Criar transação no caixa do transportador
-      await api.post("/invoice/box/transaction", {
-        value: total,
-        entityId: carrierId,
-        direction: "IN",
-        date: new Date().toISOString(),
-        description: `mercadoria perdida - ${date}`,
-        entityType: "CARRIER",
-        userId: user?.id,
+      // Chamar endpoint do backend para finalizar lista por data
+      await api.post("/invoice/lost-products/finalize-by-date", {
+        date,
+        carrierId,
+        freightPercentage,
       });
 
-      setCompletedDates((prev) => {
-        const newSet = new Set(prev);
-        newSet.add(date);
-        return newSet;
-      });
+      // Recarregar lista de produtos perdidos para atualizar com completedDate
+      await fetchLostProducts();
 
       Swal.fire({
         icon: "success",
@@ -270,7 +287,7 @@ export function LostProductsTab() {
       Swal.fire({
         icon: "error",
         title: "Erro!",
-        text: error?.response?.data?.message || "Não foi possível finalizar a lista.",
+        text: error?.response?.data?.message || error?.response?.data?.error || "Não foi possível finalizar a lista.",
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
@@ -306,9 +323,13 @@ export function LostProductsTab() {
           {sortedDates.map((date) => {
             const dateProducts = grouped[date];
             const isExpanded = expandedDates.has(date);
-            const isCompleted = completedDates.has(date);
+            // Lista está concluída se todos os produtos têm completedDate igual a date
+            const isCompleted = dateProducts.length > 0 && dateProducts.every(p => p.completedDate === date);
+            // Usar freightPercentage do primeiro produto se concluído, senão usar estado local
+            const freightPercentage = isCompleted 
+              ? (dateProducts[0]?.freightPercentage || 0)
+              : (freightPercentages[date] || 0);
             const subtotal = dateProducts.reduce((sum, p) => sum + p.refundValue, 0);
-            const freightPercentage = freightPercentages[date] || 0;
             const freightValue = subtotal * (freightPercentage / 100);
             const total = subtotal + freightValue;
 
