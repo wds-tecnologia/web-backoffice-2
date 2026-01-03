@@ -135,28 +135,61 @@ export function LostProductsTab() {
     }
   };
 
-  // Agrupar produtos por data (considerando completedDate ou createdAt)
+  // Agrupar produtos por data
+  // Produtos concluídos são agrupados por completedDate
+  // Produtos não concluídos são agrupados por createdAt (timezone Brasil)
+  // IMPORTANTE: Produtos concluídos e não concluídos NÃO podem estar na mesma lista
   const groupProductsByDate = () => {
     const grouped: Record<string, LostProduct[]> = {};
     
     lostProducts.forEach((product) => {
-      // Se tem completedDate, usa completedDate (lista concluída)
-      // Se não tem, usa createdAt convertido para timezone Brasil
-      const date = product.completedDate || getBrazilDate(product.createdAt);
+      let date: string;
+      
+      if (product.completedDate) {
+        // Produto concluído: agrupa por completedDate
+        // Usamos um prefixo para diferenciar listas concluídas
+        date = `CONCLUIDA_${product.completedDate}`;
+      } else {
+        // Produto não concluído: agrupa por data de criação (timezone Brasil)
+        date = `ATIVA_${getBrazilDate(product.createdAt)}`;
+      }
+      
       if (!grouped[date]) {
         grouped[date] = [];
       }
       grouped[date].push(product);
     });
 
-    // Ordenar datas (mais recente primeiro)
-    const sortedDates = Object.keys(grouped).sort((a, b) => {
-      const dateA = new Date(a.split("/").reverse().join("-"));
-      const dateB = new Date(b.split("/").reverse().join("-"));
-      return dateB.getTime() - dateA.getTime();
+    // Criar um novo objeto agrupado com chaves limpas (sem prefixo) para exibição
+    const displayGrouped: Record<string, LostProduct[]> = {};
+    const dateLabels: Record<string, string> = {};
+    
+    Object.keys(grouped).forEach(key => {
+      const products = grouped[key];
+      if (key.startsWith("CONCLUIDA_")) {
+        const date = key.replace("CONCLUIDA_", "");
+        displayGrouped[key] = products;
+        dateLabels[key] = date;
+      } else if (key.startsWith("ATIVA_")) {
+        const date = key.replace("ATIVA_", "");
+        displayGrouped[key] = products;
+        dateLabels[key] = date;
+      }
     });
 
-    return { grouped, sortedDates };
+    // Ordenar datas (mais recente primeiro)
+    const sortedDates = Object.keys(displayGrouped).sort((a, b) => {
+      const dateA = dateLabels[a];
+      const dateB = dateLabels[b];
+      const dateAObj = new Date(dateA.split("/").reverse().join("-"));
+      const dateBObj = new Date(dateB.split("/").reverse().join("-"));
+      // Listas ativas primeiro, depois concluídas (na mesma data)
+      if (a.startsWith("ATIVA_") && b.startsWith("CONCLUIDA_")) return -1;
+      if (a.startsWith("CONCLUIDA_") && b.startsWith("ATIVA_")) return 1;
+      return dateBObj.getTime() - dateAObj.getTime();
+    });
+
+    return { grouped: displayGrouped, sortedDates, dateLabels };
   };
 
   const toggleExpand = (date: string) => {
@@ -299,7 +332,7 @@ export function LostProductsTab() {
     }
   };
 
-  const { grouped, sortedDates } = groupProductsByDate();
+  const { grouped, sortedDates, dateLabels } = groupProductsByDate();
 
   return (
     <div className="p-6">
@@ -320,22 +353,23 @@ export function LostProductsTab() {
         </div>
       ) : (
         <div className="space-y-4">
-          {sortedDates.map((date) => {
-            const dateProducts = grouped[date];
-            const isExpanded = expandedDates.has(date);
-            // Lista está concluída se todos os produtos têm completedDate igual a date
-            const isCompleted = dateProducts.length > 0 && dateProducts.every(p => p.completedDate === date);
+          {sortedDates.map((dateKey) => {
+            const dateProducts = grouped[dateKey];
+            const displayDate = dateLabels[dateKey] || dateKey.replace(/^(CONCLUIDA_|ATIVA_)/, "");
+            const isExpanded = expandedDates.has(dateKey);
+            // Lista está concluída se a chave começa com "CONCLUIDA_"
+            const isCompleted = dateKey.startsWith("CONCLUIDA_");
             // Usar freightPercentage do primeiro produto se concluído, senão usar estado local
             const freightPercentage = isCompleted 
               ? (dateProducts[0]?.freightPercentage || 0)
-              : (freightPercentages[date] || 0);
+              : (freightPercentages[dateKey] || 0);
             const subtotal = dateProducts.reduce((sum, p) => sum + p.refundValue, 0);
             const freightValue = subtotal * (freightPercentage / 100);
             const total = subtotal + freightValue;
 
             return (
               <div
-                key={date}
+                key={dateKey}
                 className={`border rounded-lg transition-all duration-300 ${
                   isCompleted
                     ? "bg-blue-50 border-blue-200"
@@ -344,7 +378,7 @@ export function LostProductsTab() {
               >
                 {/* Header clicável */}
                 <div
-                  onClick={() => toggleExpand(date)}
+                  onClick={() => toggleExpand(dateKey)}
                   className={`p-4 cursor-pointer transition-all duration-200 ${
                     isCompleted
                       ? "bg-blue-50 hover:bg-blue-100"
@@ -359,7 +393,7 @@ export function LostProductsTab() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-semibold text-gray-800">
-                            Perdidos {date}
+                            Perdidos {displayDate}
                           </h3>
                           {isCompleted && (
                             <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
@@ -447,52 +481,73 @@ export function LostProductsTab() {
                       </table>
                     </div>
 
-                    {/* Rodapé com subtotais */}
-                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div>
-                          <p className="text-sm font-medium text-blue-800 mb-1">Subtotal:</p>
-                          <p className="text-lg font-bold text-blue-800">
+                    {/* Linha azul com Subtotal */}
+                    <div className="bg-blue-100 px-4 py-2 font-semibold text-sm text-gray-800">
+                      Subtotal
+                    </div>
+
+                    {/* Cards de Frete e Confirmar */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {/* Card Frete */}
+                      <div className="bg-gray-50 p-4 rounded-2xl border shadow-sm">
+                        <label className="block text-sm text-gray-600 mb-2">
+                          Frete (%):
+                        </label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={freightPercentage > 0 ? freightPercentage.toString() : ""}
+                          onChange={(e) => handleFreightChange(dateKey, e.target.value)}
+                          onWheel={(e) => e.currentTarget.blur()}
+                          disabled={isCompleted || isSubmitting}
+                          placeholder="0.00"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-semibold"
+                        />
+                      </div>
+
+                      {/* Card Confirmar */}
+                      <div className="bg-gray-50 p-4 rounded-2xl border shadow-sm flex items-end">
+                        <button
+                          onClick={() => handleComplete(displayDate, dateProducts)}
+                          disabled={isCompleted || isSubmitting}
+                          className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
+                            isCompleted
+                              ? "bg-gray-400 cursor-not-allowed text-white"
+                              : "bg-green-600 hover:bg-green-700 text-white"
+                          }`}
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="h-5 w-5 animate-spin inline mr-2" />
+                              Processando...
+                            </>
+                          ) : (
+                            "Confirmar"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card azul final com totais */}
+                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow-sm mt-4">
+                      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-800">Subtotal:</p>
+                          <p className="text-lg font-bold text-blue-800 mt-1">
                             {formatCurrency(subtotal)}
                           </p>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium text-blue-800 mb-1">
-                            Frete (%):
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={freightPercentage > 0 ? freightPercentage.toString() : ""}
-                            onChange={(e) => handleFreightChange(date, e.target.value)}
-                            onWheel={(e) => e.currentTarget.blur()}
-                            disabled={isCompleted || isSubmitting}
-                            placeholder="0.00"
-                            className="w-full px-3 py-2 border border-blue-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-blue-800 mb-1">Total:</p>
-                          <p className="text-lg font-bold text-blue-800">
-                            {formatCurrency(total)}
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-800">Total do Frete:</p>
+                          <p className="text-lg font-bold text-blue-800 mt-1">
+                            {formatCurrency(freightValue)}
                           </p>
                         </div>
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => handleComplete(date, dateProducts)}
-                            disabled={isCompleted || isSubmitting}
-                            className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
-                              isCompleted
-                                ? "bg-gray-400 cursor-not-allowed text-white"
-                                : "bg-green-600 hover:bg-green-700 text-white"
-                            }`}
-                          >
-                            {isSubmitting ? (
-                              <Loader2 className="h-4 w-4 animate-spin inline" />
-                            ) : (
-                              "Concluir"
-                            )}
-                          </button>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-blue-800">Total da Invoice dos Perdidos:</p>
+                          <p className="text-xl font-bold text-blue-800 mt-1">
+                            {formatCurrency(total)}
+                          </p>
                         </div>
                       </div>
                     </div>
