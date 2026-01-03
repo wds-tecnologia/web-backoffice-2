@@ -658,9 +658,13 @@ export function InvoiceHistoryReport({
                       .filter((item) => {
                         // Não mostrar produtos recebidos
                         if (item.received) return false;
-                        // Não mostrar produtos com quantidade disponível = 0
-                        const availableQuantity = item.quantity - item.quantityAnalizer - item.receivedQuantity;
-                        return availableQuantity > 0;
+                        // Não mostrar produtos com quantidade disponível = 0 ou menor
+                        const availableQuantity =
+                          item.quantity - (item.quantityAnalizer || 0) - (item.receivedQuantity || 0);
+                        // Se quantidade disponível for 0 ou menor, não mostrar
+                        // Também verificar se quantity total é 0
+                        if (availableQuantity <= 0 || item.quantity <= 0) return false;
+                        return true;
                       })
                       .sort((a, b) => {
                         const productA = products.find((p) => p.id === a.productId);
