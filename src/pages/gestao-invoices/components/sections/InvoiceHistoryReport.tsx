@@ -645,6 +645,9 @@ export function InvoiceHistoryReport({
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {selectedInvoice.paid ? "Total ($)" : "Total ($)"}
                       </th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Histórico
+                      </th>
                       {isEditMode && (
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Ações
@@ -673,6 +676,31 @@ export function InvoiceHistoryReport({
                           <td className="px-4 py-2 text-sm text-right">{product.value.toFixed(2)}</td>
                           <td className="px-4 py-2 text-sm text-right">{product.weight.toFixed(2)}</td>
                           <td className="px-4 py-2 text-sm text-right">{product.total.toFixed(2)}</td>
+                          <td className="px-4 py-2 text-sm text-center">
+                            <button
+                              onClick={async () => {
+                                setReceiptHistoryModal({
+                                  open: true,
+                                  invoiceProductId: product.id,
+                                  productName: products.find((item) => item.id === product.productId)?.name || "",
+                                });
+                                setLoadingHistory(true);
+                                try {
+                                  const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
+                                  setReceiptHistory(response.data || { grouped: [], all: [] });
+                                } catch (error) {
+                                  console.error("Erro ao buscar histórico:", error);
+                                  setReceiptHistory({ grouped: [], all: [] });
+                                } finally {
+                                  setLoadingHistory(false);
+                                }
+                              }}
+                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                              title="Ver histórico de recebimentos"
+                            >
+                              <Eye size={18} />
+                            </button>
+                          </td>
                           {isEditMode && (
                             <td className="px-4 py-2 text-sm text-right">
                               <div className="flex justify-end items-center gap-2">
@@ -816,6 +844,7 @@ export function InvoiceHistoryReport({
                             maximumFractionDigits: 2,
                           })}
                       </td>
+                      <td className="px-4 py-2 text-sm text-center text-gray-800">—</td>
                       {isEditMode && <td className="px-4 py-2 text-sm text-right text-gray-800">—</td>}
                     </tr>
                   </tbody>
@@ -1452,12 +1481,14 @@ export function InvoiceHistoryReport({
                       <div className="flex items-center gap-3">
                         <Eye size={18} className="text-blue-600" />
                         <div className="text-left">
-                          <div className="font-semibold text-gray-900">
-                            {new Date(group.date).toLocaleDateString("pt-BR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                            })}
+                          <div className="font-semibold text-gray-900 flex flex-col">
+                            <span>
+                              {new Date(group.date).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })}
+                            </span>
                           </div>
                           <div className="text-sm text-gray-600">
                             {group.entries.length} {group.entries.length === 1 ? "recebimento" : "recebimentos"}
@@ -1479,7 +1510,13 @@ export function InvoiceHistoryReport({
                           <thead className="bg-gray-50">
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                Horário
+                                Data e Horário
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Operador
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                                Invoice
                               </th>
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                                 Quantidade
@@ -1487,19 +1524,38 @@ export function InvoiceHistoryReport({
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {group.entries.map((entry: any, entryIndex: number) => (
-                              <tr key={entryIndex} className="hover:bg-gray-50">
-                                <td className="px-4 py-2 text-sm text-gray-700">
-                                  {new Date(entry.date).toLocaleTimeString("pt-BR", {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </td>
-                                <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
-                                  {entry.quantity}
-                                </td>
-                              </tr>
-                            ))}
+                            {group.entries.map((entry: any, entryIndex: number) => {
+                              const entryDate = new Date(entry.date);
+                              const dataFormatada = entryDate.toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              });
+                              const horaFormatada = entryDate.toLocaleTimeString("pt-BR", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                              });
+                              return (
+                                <tr key={entryIndex} className="hover:bg-gray-50">
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    <div className="flex flex-col">
+                                      <span>{dataFormatada}</span>
+                                      <span className="text-gray-500 text-xs">{horaFormatada}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {entry.user?.name || entry.operator?.name || entry.userName || "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-gray-700">
+                                    {entry.invoiceNumber || selectedInvoice?.number || "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
+                                    {entry.quantity}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
