@@ -702,11 +702,11 @@ export function InvoiceHistoryReport({
                                             products.find((item) => item.id === product.productId)?.name
                                           }</strong></p>
                                           <label class="block text-sm font-medium mb-1">Quantidade Perdida:</label>
-                                          <input id="lostQuantity" type="number" step="0.01" value="${
+                                          <input id="lostQuantity" type="number" step="1" value="${Math.floor(
                                             product.quantity - product.quantityAnalizer - product.receivedQuantity
-                                          }" class="swal2-input" min="0.01" max="${
+                                          )}" class="swal2-input" min="1" max="${Math.floor(
                                         product.quantity - product.quantityAnalizer - product.receivedQuantity
-                                      }">
+                                      )}">
                                           <label class="block text-sm font-medium mb-1 mt-3">% de Frete (opcional):</label>
                                           <input id="freightPercentage" type="number" step="0.01" value="0" class="swal2-input" min="0" max="100" placeholder="0-100">
                                           <label class="block text-sm font-medium mb-1 mt-3">Observações (opcional):</label>
@@ -730,11 +730,14 @@ export function InvoiceHistoryReport({
                                           document.getElementById("freightPercentage") as HTMLInputElement
                                         )?.value;
                                         const notes = (document.getElementById("notes") as HTMLTextAreaElement)?.value;
-                                        if (!quantity || Number.parseFloat(quantity) <= 0) {
-                                          Swal.showValidationMessage("Informe uma quantidade válida");
+                                        const quantityInt = Number.parseInt(quantity || "0", 10);
+                                        if (!quantity || quantityInt <= 0 || !Number.isInteger(quantityInt)) {
+                                          Swal.showValidationMessage(
+                                            "Informe uma quantidade inteira válida (1, 2, 3...)"
+                                          );
                                           return false;
                                         }
-                                        return { quantity, freightPercentage, notes };
+                                        return { quantity: quantityInt.toString(), freightPercentage, notes };
                                       },
                                     });
 
@@ -745,7 +748,7 @@ export function InvoiceHistoryReport({
                                         await api.post("/invoice/lost-products", {
                                           invoiceId: selectedInvoice.id,
                                           productId: product.productId,
-                                          quantity: Number.parseFloat(result.value.quantity),
+                                          quantity: Number.parseInt(result.value.quantity, 10),
                                           freightPercentage: result.value.freightPercentage
                                             ? Number.parseFloat(result.value.freightPercentage)
                                             : undefined,

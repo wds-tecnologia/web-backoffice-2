@@ -136,7 +136,7 @@ export function LostProductsTab() {
       await api.post("/invoice/lost-products", {
         invoiceId: formData.invoiceId,
         productId: formData.productId,
-        quantity: Number.parseFloat(formData.quantity),
+        quantity: Number.parseInt(formData.quantity, 10),
         freightPercentage: formData.freightPercentage ? Number.parseFloat(formData.freightPercentage) : undefined,
         notes: formData.notes || undefined,
       });
@@ -342,6 +342,9 @@ export function LostProductsTab() {
                   Valor Frete
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Valor Total
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Valor a Receber
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -370,6 +373,9 @@ export function LostProductsTab() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                     {formatCurrency(product.freightValue)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
+                    {formatCurrency((product.invoiceProduct?.value || 0) * product.quantity)}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-right">
                     {formatCurrency(product.refundValue)}
                   </td>
@@ -397,6 +403,37 @@ export function LostProductsTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Rodapé com totais */}
+      {lostProducts.length > 0 && (
+        <div className="mt-6 bg-blue-50 p-4 rounded-2xl border border-blue-200 shadow">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+            <div>
+              <p className="text-sm font-medium text-blue-800">Total de Produtos Perdidos:</p>
+              <p className="text-xl font-bold text-blue-800">
+                {formatCurrency(
+                  lostProducts.reduce((sum, product) => sum + product.refundValue, 0)
+                )}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-green-600">
+                Frete Total: {formatCurrency(lostProducts.reduce((sum, product) => sum + product.freightValue, 0))}
+              </p>
+              <p className="text-xs text-blue-700">
+                % Frete Média:{" "}
+                {lostProducts.length > 0
+                  ? (
+                      lostProducts.reduce((sum, product) => sum + product.freightPercentage, 0) /
+                      lostProducts.length
+                    ).toFixed(2)
+                  : "0.00"}
+                %
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -504,10 +541,16 @@ export function LostProductsTab() {
                     </label>
                     <input
                       type="number"
-                      step="0.01"
-                      min="0.01"
+                      step="1"
+                      min="1"
                       value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Aceitar apenas números inteiros
+                        if (value === "" || /^\d+$/.test(value)) {
+                          setFormData({ ...formData, quantity: value });
+                        }
+                      }}
                       className="w-full border border-gray-300 rounded-md p-2 focus:ring-red-500 focus:border-red-500"
                       disabled={isSubmitting || !formData.productId}
                       placeholder={
@@ -515,7 +558,7 @@ export function LostProductsTab() {
                           ? invoices
                               .find((inv) => inv.id === formData.invoiceId)
                               ?.products?.find((p: any) => p.productId === formData.productId)
-                              ? `Máx: ${
+                              ? `Máx: ${Math.floor(
                                   (invoices
                                     .find((inv) => inv.id === formData.invoiceId)
                                     ?.products?.find((p: any) => p.productId === formData.productId)?.quantity || 0) -
@@ -527,7 +570,7 @@ export function LostProductsTab() {
                                       .find((inv) => inv.id === formData.invoiceId)
                                       ?.products?.find((p: any) => p.productId === formData.productId)
                                       ?.quantityAnalizer || 0))
-                                }`
+                                )}`
                           : "Quantidade perdida"
                           : "Selecione produto primeiro"
                       }
