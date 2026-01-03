@@ -625,67 +625,7 @@ export function InvoiceHistoryReport({
             </div>
 
             <div className="mt-2">
-              <div className="flex justify-between items-center mb-2">
-                <h4 className="font-medium text-blue-700 border-b pb-2 flex-1">Produtos Pendentes</h4>
-                <button
-                  onClick={async () => {
-                    // Abrir modal com histórico de todos os produtos pendentes desta invoice
-                    setReceiptHistoryModal({
-                      open: true,
-                      invoiceProductId: null,
-                      productName: "Todos os Produtos Pendentes",
-                    });
-                    setLoadingHistory(true);
-                    try {
-                      // Buscar histórico de todos os produtos pendentes
-                      const allHistories: any[] = [];
-                      for (const product of selectedInvoice.products.filter((item) => !item.received)) {
-                        try {
-                          const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
-                          if (response.data?.all) {
-                            allHistories.push(
-                              ...response.data.all.map((entry: any) => ({
-                                ...entry,
-                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
-                                invoiceNumber: selectedInvoice.number,
-                              }))
-                            );
-                          }
-                        } catch (error) {
-                          console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
-                        }
-                      }
-                      // Agrupar por data
-                      const grouped = allHistories.reduce((acc: any, entry: any) => {
-                        const date = new Date(entry.date).toISOString().split("T")[0];
-                        if (!acc[date]) {
-                          acc[date] = { date, quantity: 0, entries: [] };
-                        }
-                        acc[date].quantity += entry.quantity;
-                        acc[date].entries.push(entry);
-                        return acc;
-                      }, {});
-                      const groupedArray = Object.values(grouped) as Array<{
-                        date: string;
-                        quantity: number;
-                        entries: any[];
-                      }>;
-                      setReceiptHistory({
-                        grouped: groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-                        all: allHistories,
-                      });
-                    } catch (error) {
-                      console.error("Erro ao buscar histórico:", error);
-                      setReceiptHistory({ grouped: [], all: [] });
-                    } finally {
-                      setLoadingHistory(false);
-                    }
-                  }}
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium ml-4 border-b border-blue-600 pb-1"
-                >
-                  Meus Históricos
-                </button>
-              </div>
+              <h4 className="font-medium mb-2 text-blue-700 border-b pb-2">Produtos Pendentes</h4>
               <div className="overflow-x-auto bg-white p-4 rounded-2xl shadow-md border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -1131,7 +1071,67 @@ export function InvoiceHistoryReport({
             </div>
 
             <div className="mt-2">
-              <h4 className="font-medium mb-2 text-blue-700 border-b pb-2">Produtos Recebidos</h4>
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-blue-700 border-b pb-2 flex-1">Produtos Recebidos</h4>
+                <button
+                  onClick={async () => {
+                    // Abrir modal com histórico de todos os produtos recebidos desta invoice
+                    setReceiptHistoryModal({
+                      open: true,
+                      invoiceProductId: null,
+                      productName: "Todos os Produtos Recebidos",
+                    });
+                    setLoadingHistory(true);
+                    try {
+                      // Buscar histórico de todos os produtos recebidos
+                      const allHistories: any[] = [];
+                      for (const product of selectedInvoice.products.filter((item) => item.receivedQuantity > 0)) {
+                        try {
+                          const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
+                          if (response.data?.all) {
+                            allHistories.push(
+                              ...response.data.all.map((entry: any) => ({
+                                ...entry,
+                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
+                                invoiceNumber: selectedInvoice.number,
+                              }))
+                            );
+                          }
+                        } catch (error) {
+                          console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
+                        }
+                      }
+                      // Agrupar por data
+                      const grouped = allHistories.reduce((acc: any, entry: any) => {
+                        const date = new Date(entry.date).toISOString().split("T")[0];
+                        if (!acc[date]) {
+                          acc[date] = { date, quantity: 0, entries: [] };
+                        }
+                        acc[date].quantity += entry.quantity;
+                        acc[date].entries.push(entry);
+                        return acc;
+                      }, {});
+                      const groupedArray = Object.values(grouped) as Array<{
+                        date: string;
+                        quantity: number;
+                        entries: any[];
+                      }>;
+                      setReceiptHistory({
+                        grouped: groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                        all: allHistories,
+                      });
+                    } catch (error) {
+                      console.error("Erro ao buscar histórico:", error);
+                      setReceiptHistory({ grouped: [], all: [] });
+                    } finally {
+                      setLoadingHistory(false);
+                    }
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium ml-4 border-b border-blue-600 pb-1"
+                >
+                  Meus Históricos
+                </button>
+              </div>
               <div className="overflow-x-auto bg-white p-4 rounded-2xl shadow-md border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -1150,9 +1150,6 @@ export function InvoiceHistoryReport({
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {selectedInvoice.paid ? "Total (R$)" : "Total ($)"}
-                      </th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Histórico
                       </th>
                     </tr>
                   </thead>
@@ -1216,33 +1213,6 @@ export function InvoiceHistoryReport({
                                 maximumFractionDigits: 2,
                               });
                             })()}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-center">
-                            <button
-                              onClick={async () => {
-                                setReceiptHistoryModal({
-                                  open: true,
-                                  invoiceProductId: product.id,
-                                  productName: products.find((item) => item.id === product.productId)?.name || "",
-                                });
-                                setLoadingHistory(true);
-                                setExpandedDate(null);
-                                try {
-                                  const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
-                                  // API agora retorna { grouped: [...], all: [...] }
-                                  setReceiptHistory(response.data || { grouped: [], all: [] });
-                                } catch (error) {
-                                  console.error("Erro ao buscar histórico:", error);
-                                  setReceiptHistory({ grouped: [], all: [] });
-                                } finally {
-                                  setLoadingHistory(false);
-                                }
-                              }}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                              title="Ver histórico de recebimentos"
-                            >
-                              <Eye size={18} />
-                            </button>
                           </td>
                         </tr>
                       ))}
