@@ -625,7 +625,67 @@ export function InvoiceHistoryReport({
             </div>
 
             <div className="mt-2">
-              <h4 className="font-medium mb-2 text-blue-700 border-b pb-2">Produtos Pendentes</h4>
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-medium text-blue-700 border-b pb-2 flex-1">Produtos Pendentes</h4>
+                <button
+                  onClick={async () => {
+                    // Abrir modal com histórico de todos os produtos pendentes desta invoice
+                    setReceiptHistoryModal({
+                      open: true,
+                      invoiceProductId: null,
+                      productName: "Todos os Produtos Pendentes",
+                    });
+                    setLoadingHistory(true);
+                    try {
+                      // Buscar histórico de todos os produtos pendentes
+                      const allHistories: any[] = [];
+                      for (const product of selectedInvoice.products.filter((item) => !item.received)) {
+                        try {
+                          const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
+                          if (response.data?.all) {
+                            allHistories.push(
+                              ...response.data.all.map((entry: any) => ({
+                                ...entry,
+                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
+                                invoiceNumber: selectedInvoice.number,
+                              }))
+                            );
+                          }
+                        } catch (error) {
+                          console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
+                        }
+                      }
+                      // Agrupar por data
+                      const grouped = allHistories.reduce((acc: any, entry: any) => {
+                        const date = new Date(entry.date).toISOString().split("T")[0];
+                        if (!acc[date]) {
+                          acc[date] = { date, quantity: 0, entries: [] };
+                        }
+                        acc[date].quantity += entry.quantity;
+                        acc[date].entries.push(entry);
+                        return acc;
+                      }, {});
+                      const groupedArray = Object.values(grouped) as Array<{
+                        date: string;
+                        quantity: number;
+                        entries: any[];
+                      }>;
+                      setReceiptHistory({
+                        grouped: groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                        all: allHistories,
+                      });
+                    } catch (error) {
+                      console.error("Erro ao buscar histórico:", error);
+                      setReceiptHistory({ grouped: [], all: [] });
+                    } finally {
+                      setLoadingHistory(false);
+                    }
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium ml-4 border-b border-blue-600 pb-1"
+                >
+                  Meus Históricos
+                </button>
+              </div>
               <div className="overflow-x-auto bg-white p-4 rounded-2xl shadow-md border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -644,9 +704,6 @@ export function InvoiceHistoryReport({
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {selectedInvoice.paid ? "Total ($)" : "Total ($)"}
-                      </th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Histórico
                       </th>
                       {isEditMode && (
                         <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -676,31 +733,6 @@ export function InvoiceHistoryReport({
                           <td className="px-4 py-2 text-sm text-right">{product.value.toFixed(2)}</td>
                           <td className="px-4 py-2 text-sm text-right">{product.weight.toFixed(2)}</td>
                           <td className="px-4 py-2 text-sm text-right">{product.total.toFixed(2)}</td>
-                          <td className="px-4 py-2 text-sm text-center">
-                            <button
-                              onClick={async () => {
-                                setReceiptHistoryModal({
-                                  open: true,
-                                  invoiceProductId: product.id,
-                                  productName: products.find((item) => item.id === product.productId)?.name || "",
-                                });
-                                setLoadingHistory(true);
-                                try {
-                                  const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
-                                  setReceiptHistory(response.data || { grouped: [], all: [] });
-                                } catch (error) {
-                                  console.error("Erro ao buscar histórico:", error);
-                                  setReceiptHistory({ grouped: [], all: [] });
-                                } finally {
-                                  setLoadingHistory(false);
-                                }
-                              }}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                              title="Ver histórico de recebimentos"
-                            >
-                              <Eye size={18} />
-                            </button>
-                          </td>
                           {isEditMode && (
                             <td className="px-4 py-2 text-sm text-right">
                               <div className="flex justify-end items-center gap-2">
@@ -726,9 +758,15 @@ export function InvoiceHistoryReport({
                                       title: "Marcar como Perdido",
                                       html: `
                                         <div class="text-left">
-                                          <p class="mb-4">Produto: <strong>${products.find((item) => item.id === product.productId)?.name}</strong></p>
+                                          <p class="mb-4">Produto: <strong>${
+                                            products.find((item) => item.id === product.productId)?.name
+                                          }</strong></p>
                                           <label class="block text-sm font-medium mb-1">Quantidade Perdida:</label>
-                                          <input id="lostQuantity" type="number" step="0.01" value="${product.quantity - product.quantityAnalizer - product.receivedQuantity}" class="swal2-input" min="0.01" max="${product.quantity - product.quantityAnalizer - product.receivedQuantity}">
+                                          <input id="lostQuantity" type="number" step="0.01" value="${
+                                            product.quantity - product.quantityAnalizer - product.receivedQuantity
+                                          }" class="swal2-input" min="0.01" max="${
+                                        product.quantity - product.quantityAnalizer - product.receivedQuantity
+                                      }">
                                           <label class="block text-sm font-medium mb-1 mt-3">% de Frete (opcional):</label>
                                           <input id="freightPercentage" type="number" step="0.01" value="0" class="swal2-input" min="0" max="100" placeholder="0-100">
                                           <label class="block text-sm font-medium mb-1 mt-3">Observações (opcional):</label>
@@ -740,12 +778,17 @@ export function InvoiceHistoryReport({
                                       cancelButtonText: "Cancelar",
                                       buttonsStyling: false,
                                       customClass: {
-                                        confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
-                                        cancelButton: "bg-gray-500 text-white hover:bg-gray-600 px-4 py-2 rounded font-semibold",
+                                        confirmButton:
+                                          "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
+                                        cancelButton:
+                                          "bg-gray-500 text-white hover:bg-gray-600 px-4 py-2 rounded font-semibold",
                                       },
                                       preConfirm: () => {
-                                        const quantity = (document.getElementById("lostQuantity") as HTMLInputElement)?.value;
-                                        const freightPercentage = (document.getElementById("freightPercentage") as HTMLInputElement)?.value;
+                                        const quantity = (document.getElementById("lostQuantity") as HTMLInputElement)
+                                          ?.value;
+                                        const freightPercentage = (
+                                          document.getElementById("freightPercentage") as HTMLInputElement
+                                        )?.value;
                                         const notes = (document.getElementById("notes") as HTMLTextAreaElement)?.value;
                                         if (!quantity || Number.parseFloat(quantity) <= 0) {
                                           Swal.showValidationMessage("Informe uma quantidade válida");
@@ -776,12 +819,15 @@ export function InvoiceHistoryReport({
                                           confirmButtonText: "Ok",
                                           buttonsStyling: false,
                                           customClass: {
-                                            confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+                                            confirmButton:
+                                              "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
                                           },
                                         });
 
                                         const { data: updatedInvoices } = await api.get("/invoice/get");
-                                        const updated = updatedInvoices.find((i: InvoiceData) => i.id === product.invoiceId);
+                                        const updated = updatedInvoices.find(
+                                          (i: InvoiceData) => i.id === product.invoiceId
+                                        );
                                         setInvoices(updatedInvoices);
                                         setSelectedInvoice(updated || null);
                                       } catch (error: any) {
@@ -789,11 +835,14 @@ export function InvoiceHistoryReport({
                                         Swal.fire({
                                           icon: "error",
                                           title: "Erro!",
-                                          text: error?.response?.data?.message || "Não foi possível marcar o produto como perdido.",
+                                          text:
+                                            error?.response?.data?.message ||
+                                            "Não foi possível marcar o produto como perdido.",
                                           confirmButtonText: "Ok",
                                           buttonsStyling: false,
                                           customClass: {
-                                            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+                                            confirmButton:
+                                              "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
                                           },
                                         });
                                       } finally {
@@ -844,7 +893,6 @@ export function InvoiceHistoryReport({
                             maximumFractionDigits: 2,
                           })}
                       </td>
-                      <td className="px-4 py-2 text-sm text-center text-gray-800">—</td>
                       {isEditMode && <td className="px-4 py-2 text-sm text-right text-gray-800">—</td>}
                     </tr>
                   </tbody>
@@ -1027,7 +1075,7 @@ export function InvoiceHistoryReport({
                               for (const item of productsToReceive) {
                                 const allreceived = item.receivedQuantity + item.quantityAnalizer >= item.quantity;
                                 const quantityReceived = item.quantityAnalizer;
-                                
+
                                 await api.patch("/invoice/update/product", {
                                   idProductInvoice: item.id,
                                   bodyupdate: {
@@ -1036,7 +1084,7 @@ export function InvoiceHistoryReport({
                                     quantityAnalizer: 0,
                                   },
                                 });
-                                
+
                                 // Registrar no histórico de recebimentos
                                 if (quantityReceived > 0) {
                                   try {
@@ -1447,9 +1495,7 @@ export function InvoiceHistoryReport({
           >
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-lg font-medium text-blue-700">
-                  Histórico de Recebimentos
-                </h3>
+                <h3 className="text-lg font-medium text-blue-700">Histórico de Recebimentos</h3>
                 <p className="text-sm text-gray-600">
                   Produto: <span className="font-semibold">{receiptHistoryModal.productName}</span>
                 </p>
@@ -1467,9 +1513,7 @@ export function InvoiceHistoryReport({
                 <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
               </div>
             ) : receiptHistory.grouped.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Nenhum registro de recebimento encontrado.
-              </div>
+              <div className="text-center py-8 text-gray-500">Nenhum registro de recebimento encontrado.</div>
             ) : (
               <div className="space-y-3">
                 {receiptHistory.grouped.map((group, index) => (
@@ -1496,10 +1540,12 @@ export function InvoiceHistoryReport({
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="font-bold text-green-600 text-lg">
-                          Qtd: {group.quantity}
-                        </span>
-                        <span className={`transform transition-transform ${expandedDate === group.date ? 'rotate-180' : ''}`}>
+                        <span className="font-bold text-green-600 text-lg">Qtd: {group.quantity}</span>
+                        <span
+                          className={`transform transition-transform ${
+                            expandedDate === group.date ? "rotate-180" : ""
+                          }`}
+                        >
                           ▼
                         </span>
                       </div>

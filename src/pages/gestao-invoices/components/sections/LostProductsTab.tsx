@@ -256,8 +256,8 @@ export function LostProductsTab() {
   const openEditModal = (product: LostProduct) => {
     setEditingProduct(product);
     setFormData({
-      invoiceId: product.invoiceProduct.invoice.id,
-      productId: product.invoiceProduct.productId,
+      invoiceId: product.invoiceProduct?.invoice?.id || "",
+      productId: product.invoiceProduct?.productId || "",
       quantity: product.quantity.toString(),
       freightPercentage: product.freightPercentage.toString(),
       notes: product.notes || "",
@@ -353,13 +353,13 @@ export function LostProductsTab() {
               {lostProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {product.invoiceProduct.product.name}
+                    {product.invoiceProduct?.product?.name || "Produto não encontrado"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.invoiceProduct.invoice.number}
+                    {product.invoiceProduct?.invoice?.number || "—"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {product.invoiceProduct.invoice.supplier.name}
+                    {product.invoiceProduct?.invoice?.supplier?.name || "—"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                     {product.quantity}
@@ -538,10 +538,10 @@ export function LostProductsTab() {
               {editingProduct && (
                 <div className="bg-gray-50 p-3 rounded-md">
                   <p className="text-sm text-gray-600">
-                    <strong>Invoice:</strong> {editingProduct.invoiceProduct.invoice.number}
+                    <strong>Invoice:</strong> {editingProduct.invoiceProduct?.invoice?.number || "—"}
                   </p>
                   <p className="text-sm text-gray-600">
-                    <strong>Produto:</strong> {editingProduct.invoiceProduct.product.name}
+                    <strong>Produto:</strong> {editingProduct.invoiceProduct?.product?.name || "—"}
                   </p>
                   <p className="text-sm text-gray-600">
                     <strong>Quantidade:</strong> {editingProduct.quantity}
