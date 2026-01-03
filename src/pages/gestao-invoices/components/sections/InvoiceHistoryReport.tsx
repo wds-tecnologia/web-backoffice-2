@@ -140,6 +140,7 @@ export function InvoiceHistoryReport({
   }>({ grouped: [], all: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<any | null>(null);
   // const [invoices, setInvoices] = useState<InvoiceData[]>([]);
   const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1088,25 +1089,35 @@ export function InvoiceHistoryReport({
                     try {
                       // Buscar histórico de todos os produtos recebidos
                       const allHistories: any[] = [];
+                      const entryIds = new Set<string>(); // Para evitar duplicação
                       for (const product of selectedInvoice.products.filter((item) => item.receivedQuantity > 0)) {
                         try {
                           const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
                           if (response.data?.all) {
-                            allHistories.push(
-                              ...response.data.all.map((entry: any) => ({
-                                ...entry,
-                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
-                                invoiceNumber: selectedInvoice.number,
-                              }))
-                            );
+                            response.data.all.forEach((entry: any) => {
+                              // Usar ID único ou combinação de date+quantity+invoiceProductId para evitar duplicação
+                              const entryKey = entry.id || `${entry.date}-${entry.quantity}-${product.id}`;
+                              if (!entryIds.has(entryKey)) {
+                                entryIds.add(entryKey);
+                                allHistories.push({
+                                  ...entry,
+                                  productName: products.find((p) => p.id === product.productId)?.name || "Produto",
+                                  invoiceNumber: selectedInvoice.number,
+                                  invoiceProductId: product.id,
+                                });
+                              }
+                            });
                           }
                         } catch (error) {
                           console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
                         }
                       }
-                      // Agrupar por data
+                      // Agrupar por data (usando timezone local)
                       const grouped = allHistories.reduce((acc: any, entry: any) => {
-                        const date = new Date(entry.date).toISOString().split("T")[0];
+                        const entryDate = new Date(entry.date);
+                        // Converter para timezone local (Brasil)
+                        const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
+                        const date = localDate.toISOString().split("T")[0];
                         if (!acc[date]) {
                           acc[date] = { date, quantity: 0, entries: [] };
                         }
@@ -1500,7 +1511,7 @@ export function InvoiceHistoryReport({
                         <div className="text-left">
                           <div className="font-semibold text-gray-900 flex flex-col">
                             <span>
-                              {new Date(group.date).toLocaleDateString("pt-BR", {
+                              {new Date(group.date + "T00:00:00").toLocaleDateString("pt-BR", {
                                 day: "2-digit",
                                 month: "2-digit",
                                 year: "numeric",
@@ -1540,23 +1551,28 @@ export function InvoiceHistoryReport({
                               <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">
                                 Quantidade
                               </th>
+                              <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase">
+                                Visualizar
+                              </th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {group.entries.map((entry: any, entryIndex: number) => {
                               const entryDate = new Date(entry.date);
-                              const dataFormatada = entryDate.toLocaleDateString("pt-BR", {
+                              // Converter para timezone local
+                              const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
+                              const dataFormatada = localDate.toLocaleDateString("pt-BR", {
                                 day: "2-digit",
                                 month: "2-digit",
                                 year: "numeric",
                               });
-                              const horaFormatada = entryDate.toLocaleTimeString("pt-BR", {
+                              const horaFormatada = localDate.toLocaleTimeString("pt-BR", {
                                 hour: "2-digit",
                                 minute: "2-digit",
                                 second: "2-digit",
                               });
                               return (
-                                <tr key={entryIndex} className="hover:bg-gray-50">
+                                <tr key={entry.id || entryIndex} className="hover:bg-gray-50">
                                   <td className="px-4 py-2 text-sm text-gray-700">
                                     <div className="flex flex-col">
                                       <span>{dataFormatada}</span>
@@ -1572,6 +1588,15 @@ export function InvoiceHistoryReport({
                                   <td className="px-4 py-2 text-sm text-right font-semibold text-green-600">
                                     {entry.quantity}
                                   </td>
+                                  <td className="px-4 py-2 text-sm text-center">
+                                    <button
+                                      onClick={() => setViewingEntry(entry)}
+                                      className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                                      title="Ver detalhes"
+                                    >
+                                      <Eye size={18} />
+                                    </button>
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -1583,6 +1608,80 @@ export function InvoiceHistoryReport({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalhes do Recebimento */}
+      {viewingEntry && (
+        <div
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50"
+          onClick={() => setViewingEntry(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white p-6 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto mx-4"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-lg font-medium text-blue-700">Detalhes do Recebimento</h3>
+                <p className="text-sm text-gray-600">
+                  Produto: <span className="font-semibold">{viewingEntry.productName || "—"}</span>
+                </p>
+              </div>
+              <button onClick={() => setViewingEntry(null)} className="text-gray-500 hover:text-gray-700">
+                <XIcon size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Data e Horário:</p>
+                  <p className="text-sm text-gray-900">
+                    {(() => {
+                      const entryDate = new Date(viewingEntry.date);
+                      const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
+                      return localDate.toLocaleString("pt-BR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      });
+                    })()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Quantidade:</p>
+                  <p className="text-sm font-semibold text-green-600">{viewingEntry.quantity}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Operador:</p>
+                  <p className="text-sm text-gray-900">
+                    {viewingEntry.user?.name || viewingEntry.operator?.name || viewingEntry.userName || "—"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Invoice:</p>
+                  <p className="text-sm text-gray-900">
+                    {viewingEntry.invoiceNumber || selectedInvoice?.number || "—"}
+                  </p>
+                </div>
+              </div>
+
+              {viewingEntry.productName && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Produtos Recebidos:</p>
+                  <div className="bg-gray-50 p-3 rounded">
+                    <p className="text-sm text-gray-900">
+                      <strong>{viewingEntry.productName}</strong> - Qtd: {viewingEntry.quantity}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
