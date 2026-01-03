@@ -695,30 +695,72 @@ export function InvoiceHistoryReport({
                                 </button>
                                 <button
                                   onClick={async () => {
+                                    const maxQuantity = Math.floor(
+                                      product.quantity - product.quantityAnalizer - product.receivedQuantity
+                                    );
+                                    const productName =
+                                      products.find((item) => item.id === product.productId)?.name || "";
+
                                     const result = await Swal.fire({
                                       title: "Marcar como Perdido",
                                       html: `
-                                        <div class="text-left">
-                                          <p class="mb-4 text-gray-700">Produto: <strong class="text-gray-900">${
-                                            products.find((item) => item.id === product.productId)?.name
-                                          }</strong></p>
-                                          <label class="block text-sm font-medium text-gray-700 mb-2">Quantidade Perdida:</label>
-                                          <input id="lostQuantity" type="number" step="1" value="${Math.floor(
-                                            product.quantity - product.quantityAnalizer - product.receivedQuantity
-                                          )}" class="swal2-input" min="1" max="${Math.floor(
-                                        product.quantity - product.quantityAnalizer - product.receivedQuantity
-                                      )}" placeholder="Digite a quantidade">
+                                        <div style="text-align: left; padding: 0.5rem 0;">
+                                          <div style="margin-bottom: 1.5rem; padding: 0.75rem; background-color: #f3f4f6; border-radius: 0.5rem; border-left: 4px solid #ef4444;">
+                                            <p style="margin: 0; font-size: 0.875rem; color: #6b7280; margin-bottom: 0.25rem;">Produto:</p>
+                                            <p style="margin: 0; font-size: 1rem; font-weight: 600; color: #111827;">${productName}</p>
+                                          </div>
+                                          <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">Quantidade Perdida:</label>
+                                          <input 
+                                            id="lostQuantity" 
+                                            type="text" 
+                                            inputmode="numeric" 
+                                            pattern="[0-9]*"
+                                            value="${maxQuantity}" 
+                                            style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; transition: border-color 0.2s; outline: none;" 
+                                            placeholder="Digite a quantidade"
+                                            onfocus="this.style.borderColor='#ef4444'"
+                                            onblur="this.style.borderColor='#d1d5db'"
+                                          />
+                                          <p style="margin: 0.5rem 0 0 0; font-size: 0.75rem; color: #6b7280;">Máximo disponível: ${maxQuantity}</p>
                                         </div>
                                       `,
+                                      width: "480px",
                                       showCancelButton: true,
                                       confirmButtonText: "Confirmar",
                                       cancelButtonText: "Cancelar",
                                       buttonsStyling: false,
                                       customClass: {
                                         confirmButton:
-                                          "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
+                                          "bg-red-600 text-white hover:bg-red-700 px-6 py-2.5 rounded-lg font-semibold mr-2 transition-colors",
                                         cancelButton:
-                                          "bg-gray-500 text-white hover:bg-gray-600 px-4 py-2 rounded font-semibold",
+                                          "bg-gray-500 text-white hover:bg-gray-600 px-6 py-2.5 rounded-lg font-semibold transition-colors",
+                                      },
+                                      didOpen: () => {
+                                        const input = document.getElementById("lostQuantity") as HTMLInputElement;
+                                        if (input) {
+                                          input.focus();
+                                          input.select();
+                                          // Prevenir scroll do mouse no input
+                                          input.addEventListener("wheel", (e) => e.preventDefault(), {
+                                            passive: false,
+                                          });
+                                          input.addEventListener("keydown", (e) => {
+                                            // Permitir apenas números e teclas de controle
+                                            if (
+                                              !/[0-9]/.test(e.key) &&
+                                              ![
+                                                "Backspace",
+                                                "Delete",
+                                                "ArrowLeft",
+                                                "ArrowRight",
+                                                "Tab",
+                                                "Enter",
+                                              ].includes(e.key)
+                                            ) {
+                                              e.preventDefault();
+                                            }
+                                          });
+                                        }
                                       },
                                       preConfirm: () => {
                                         const quantity = (document.getElementById("lostQuantity") as HTMLInputElement)
@@ -727,6 +769,12 @@ export function InvoiceHistoryReport({
                                         if (!quantity || quantityInt <= 0 || !Number.isInteger(quantityInt)) {
                                           Swal.showValidationMessage(
                                             "Informe uma quantidade inteira válida (1, 2, 3...)"
+                                          );
+                                          return false;
+                                        }
+                                        if (quantityInt > maxQuantity) {
+                                          Swal.showValidationMessage(
+                                            `A quantidade não pode ser maior que ${maxQuantity}`
                                           );
                                           return false;
                                         }

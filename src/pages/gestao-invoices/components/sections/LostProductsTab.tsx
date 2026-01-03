@@ -369,9 +369,7 @@ export function LostProductsTab() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-right">
                     {formatCurrency(
-                      product.invoiceProduct?.value && product.invoiceProduct?.quantity > 0
-                        ? product.invoiceProduct.value / product.invoiceProduct.quantity
-                        : 0
+                      product.invoiceProduct?.value || 0
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-right">
