@@ -768,12 +768,19 @@ export function InvoiceHistoryReport({
                                           },
                                         });
 
+                                        // Atualizar a lista de invoices e a invoice selecionada
                                         const { data: updatedInvoices } = await api.get("/invoice/get");
-                                        const updated = updatedInvoices.find(
-                                          (i: InvoiceData) => i.id === product.invoiceId
-                                        );
                                         setInvoices(updatedInvoices);
-                                        setSelectedInvoice(updated || null);
+
+                                        // Buscar a invoice atualizada usando o ID da invoice selecionada
+                                        if (selectedInvoice?.id) {
+                                          const updatedInvoice = updatedInvoices.find(
+                                            (i: InvoiceData) => i.id === selectedInvoice.id
+                                          );
+                                          if (updatedInvoice) {
+                                            setSelectedInvoice(updatedInvoice);
+                                          }
+                                        }
                                       } catch (error: any) {
                                         console.error("Erro ao marcar produto como perdido:", error);
                                         Swal.fire({
