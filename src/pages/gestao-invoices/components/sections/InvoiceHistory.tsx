@@ -236,9 +236,9 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   };
 
   const getStatusText = (invoice: InvoiceData) => {
-    if (invoice.paid) return "Paga"; // Se está paga, sempre mostra "Paga"
-    if (invoice.completed) return "Concluída";
-    return "Pendente"; // Só é pendente se não está paga e não está concluída
+    if (invoice.completed && invoice.paid) return "Concluída";
+    if (!invoice.completed && invoice.paid) return "Paga";
+    return "Pendente";
   };
 
   const getStatusClass = (invoice: InvoiceData) => {
