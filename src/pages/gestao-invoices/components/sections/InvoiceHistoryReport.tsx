@@ -1089,31 +1089,45 @@ export function InvoiceHistoryReport({
                     try {
                       // Buscar histórico de todos os produtos recebidos
                       const allHistories: any[] = [];
-                      const entryIds = new Set<string>(); // Para evitar duplicação
                       for (const product of selectedInvoice.products.filter((item) => item.receivedQuantity > 0)) {
                         try {
                           const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
                           if (response.data?.all) {
                             response.data.all.forEach((entry: any) => {
-                              // Usar ID único ou combinação de date+quantity+invoiceProductId para evitar duplicação
-                              const entryKey = entry.id || `${entry.date}-${entry.quantity}-${product.id}`;
-                              if (!entryIds.has(entryKey)) {
-                                entryIds.add(entryKey);
-                                allHistories.push({
-                                  ...entry,
-                                  productName: products.find((p) => p.id === product.productId)?.name || "Produto",
-                                  invoiceNumber: selectedInvoice.number,
-                                  invoiceProductId: product.id,
-                                });
-                              }
+                              allHistories.push({
+                                ...entry,
+                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
+                                invoiceNumber: selectedInvoice.number,
+                                invoiceProductId: product.id,
+                              });
                             });
                           }
                         } catch (error) {
                           console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
                         }
                       }
+
+                      // Deduplicar entradas: comparar data/hora (tolerância de 5 minutos), invoice, quantidade e produto
+                      const deduplicatedHistories: any[] = [];
+                      const seenEntries = new Set<string>();
+
+                      allHistories.forEach((entry: any) => {
+                        const entryDate = new Date(entry.date);
+                        // Criar uma chave única baseada em: data/hora (arredondada para 5 minutos), invoice, quantidade, produto
+                        const dateRounded = new Date(entryDate.getTime() - (entryDate.getTime() % (5 * 60 * 1000))); // Arredondar para 5 minutos
+                        const dateKey = dateRounded.toISOString().substring(0, 16); // YYYY-MM-DDTHH:mm
+                        const uniqueKey = `${dateKey}-${entry.invoiceNumber || selectedInvoice.number}-${
+                          entry.quantity
+                        }-${entry.productName || entry.invoiceProductId}`;
+
+                        if (!seenEntries.has(uniqueKey)) {
+                          seenEntries.add(uniqueKey);
+                          deduplicatedHistories.push(entry);
+                        }
+                      });
+
                       // Agrupar por data (usando timezone local)
-                      const grouped = allHistories.reduce((acc: any, entry: any) => {
+                      const grouped = deduplicatedHistories.reduce((acc: any, entry: any) => {
                         const entryDate = new Date(entry.date);
                         // Converter para timezone local (Brasil)
                         const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
