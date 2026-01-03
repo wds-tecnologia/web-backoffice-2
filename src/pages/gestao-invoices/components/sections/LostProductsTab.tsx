@@ -278,14 +278,15 @@ export function LostProductsTab() {
           <AlertTriangle className="mr-2" size={20} />
           Produtos Perdidos
         </h2>
-        <button
+        {/* Botão comentado temporariamente - não será usado no momento */}
+        {/* <button
           onClick={() => setShowModal(true)}
           className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center"
           disabled={isSubmitting}
         >
           <Plus className="mr-2" size={16} />
           Registrar Produto Perdido
-        </button>
+        </button> */}
       </div>
 
       {/* Resumo */}
