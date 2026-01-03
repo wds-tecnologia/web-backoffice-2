@@ -450,6 +450,8 @@ export function LostProductsTab() {
             const total = subtotal + freightValue;
             // Para edição (input), usar freightPercentages (ainda não confirmado)
             const editingFreightPercentage = freightPercentages[dateKey] || 0;
+            // Calcular total de itens (soma das quantidades)
+            const totalItems = dateProducts.reduce((sum, p) => sum + p.quantity, 0);
 
             return (
               <div
@@ -483,7 +485,7 @@ export function LostProductsTab() {
                         </div>
                         <div className="flex items-center gap-4 text-sm">
                           <p className="text-gray-600">
-                            {dateProducts.length} produto{dateProducts.length !== 1 ? "s" : ""}
+                            {totalItems} item{totalItems !== 1 ? "s" : ""}
                           </p>
                           {!isExpanded && (
                             <>
