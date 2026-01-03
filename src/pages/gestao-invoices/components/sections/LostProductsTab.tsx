@@ -71,6 +71,7 @@ export function LostProductsTab() {
   });
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [freightPercentages, setFreightPercentages] = useState<Record<string, number>>({});
+  const [confirmedFreightPercentages, setConfirmedFreightPercentages] = useState<Record<string, number>>({});
   const { setOpenNotification } = useNotification();
   const { user } = usePermissionStore();
 
@@ -99,8 +100,8 @@ export function LostProductsTab() {
         api.get("/invoice/carriers"),
       ]);
       setInvoices(invoiceResponse.data || []);
-      const productsData = Array.isArray(productsResponse.data) 
-        ? productsResponse.data 
+      const productsData = Array.isArray(productsResponse.data)
+        ? productsResponse.data
         : productsResponse.data.products || [];
       setProducts(productsData.filter((p: any) => p.active !== false));
       setCarriers(carriersResponse.data || []);
@@ -138,33 +139,54 @@ export function LostProductsTab() {
   // Agrupar produtos por data
   // Produtos concluídos são agrupados por completedDate
   // Produtos não concluídos são agrupados por createdAt (timezone Brasil)
-  // IMPORTANTE: Produtos concluídos e não concluídos NÃO podem estar na mesma lista
+  // IMPORTANTE: Cada lista concluída e ativa deve ter uma chave única, mesmo que sejam da mesma data
   const groupProductsByDate = () => {
     const grouped: Record<string, LostProduct[]> = {};
-    
+
+    // Primeiro, separar produtos concluídos e não concluídos
+    const concludedProducts: LostProduct[] = [];
+    const activeProducts: LostProduct[] = [];
+
     lostProducts.forEach((product) => {
-      let date: string;
-      
       if (product.completedDate) {
-        // Produto concluído: agrupa por completedDate
-        // Usamos um prefixo para diferenciar listas concluídas
-        date = `CONCLUIDA_${product.completedDate}`;
+        concludedProducts.push(product);
       } else {
-        // Produto não concluído: agrupa por data de criação (timezone Brasil)
-        date = `ATIVA_${getBrazilDate(product.createdAt)}`;
+        activeProducts.push(product);
       }
-      
-      if (!grouped[date]) {
-        grouped[date] = [];
-      }
-      grouped[date].push(product);
     });
 
-    // Criar um novo objeto agrupado com chaves limpas (sem prefixo) para exibição
+    // Agrupar produtos concluídos: agrupar por completedDate
+    // IMPORTANTE: Produtos com o mesmo completedDate pertencem à mesma lista concluída
+    const concludedGrouped: Record<string, LostProduct[]> = {};
+    concludedProducts.forEach((product) => {
+      const date = product.completedDate!;
+      const key = `CONCLUIDA_${date}`;
+      if (!concludedGrouped[key]) {
+        concludedGrouped[key] = [];
+      }
+      concludedGrouped[key].push(product);
+    });
+
+    // Agrupar produtos ativos por data de criação (timezone Brasil)
+    const activeGrouped: Record<string, LostProduct[]> = {};
+    activeProducts.forEach((product) => {
+      const date = getBrazilDate(product.createdAt);
+      const key = `ATIVA_${date}`;
+      if (!activeGrouped[key]) {
+        activeGrouped[key] = [];
+      }
+      activeGrouped[key].push(product);
+    });
+
+    // Combinar grupos (produtos concluídos e ativos nunca devem ser mesclados)
+    Object.assign(grouped, concludedGrouped);
+    Object.assign(grouped, activeGrouped);
+
+    // Criar labels para exibição
     const displayGrouped: Record<string, LostProduct[]> = {};
     const dateLabels: Record<string, string> = {};
-    
-    Object.keys(grouped).forEach(key => {
+
+    Object.keys(grouped).forEach((key) => {
       const products = grouped[key];
       if (key.startsWith("CONCLUIDA_")) {
         const date = key.replace("CONCLUIDA_", "");
@@ -204,31 +226,44 @@ export function LostProductsTab() {
     });
   };
 
-  const handleFreightChange = (date: string, value: string) => {
+  const handleFreightChange = (dateKey: string, value: string) => {
     // Permitir apenas números e ponto decimal, remover vírgulas
     const cleanValue = value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
-    
-    // Se estiver vazio, definir como string vazia (não zero)
+
+    // Se estiver vazio, definir como 0
     if (cleanValue === "" || cleanValue === ".") {
       setFreightPercentages((prev) => ({
         ...prev,
-        [date]: 0,
+        [dateKey]: 0,
       }));
       return;
     }
-    
+
     const numValue = Number.parseFloat(cleanValue);
     if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
       setFreightPercentages((prev) => ({
         ...prev,
-        [date]: numValue,
+        [dateKey]: numValue,
       }));
     }
   };
 
-  const handleComplete = async (date: string, products: LostProduct[]) => {
-    // Verificar se já está concluída (todos os produtos têm completedDate igual a date)
-    const isAlreadyCompleted = products.every(p => p.completedDate === date);
+  const handleConfirmFreight = (dateKey: string) => {
+    const freightPercentage = freightPercentages[dateKey] || 0;
+    setConfirmedFreightPercentages((prev) => ({
+      ...prev,
+      [dateKey]: freightPercentage,
+    }));
+    setOpenNotification({
+      type: "success",
+      title: "Sucesso!",
+      notification: "Frete confirmado!",
+    });
+  };
+
+  const handleComplete = async (dateKey: string, displayDate: string, products: LostProduct[]) => {
+    // Verificar se já está concluída (todos os produtos têm completedDate igual a displayDate)
+    const isAlreadyCompleted = products.every((p) => p.completedDate === displayDate);
     if (isAlreadyCompleted) {
       Swal.fire({
         icon: "warning",
@@ -237,24 +272,41 @@ export function LostProductsTab() {
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
-          confirmButton: "bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+          confirmButton:
+            "bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
         },
       });
       return;
     }
 
-    const freightPercentage = freightPercentages[date] || 0;
+    const freightPercentage = confirmedFreightPercentages[dateKey] || 0;
+    if (!freightPercentage && !isAlreadyCompleted) {
+      Swal.fire({
+        icon: "warning",
+        title: "Aviso!",
+        text: "Você precisa confirmar o frete antes de concluir a lista.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton:
+            "bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+        },
+      });
+      return;
+    }
     const subtotal = products.reduce((sum, p) => sum + p.refundValue, 0);
     const freightValue = subtotal * (freightPercentage / 100);
     const total = subtotal + freightValue;
-    
+
     const { value: carrierId } = await Swal.fire({
       title: "Finalizar Lista de Produtos Perdidos",
       html: `
         <div style="text-align: left; padding: 0.5rem 0;">
           <div style="margin-bottom: 1rem; padding: 0.75rem; background-color: #eff6ff; border-radius: 0.5rem; border-left: 4px solid #3b82f6;">
             <p style="margin: 0; font-size: 0.875rem; color: #1e40af; font-weight: 600;">Valor Total a Creditar:</p>
-            <p style="margin: 0.25rem 0 0 0; font-size: 1.5rem; font-weight: 700; color: #1e3a8a;">${formatCurrency(total)}</p>
+            <p style="margin: 0.25rem 0 0 0; font-size: 1.5rem; font-weight: 700; color: #1e3a8a;">${formatCurrency(
+              total
+            )}</p>
           </div>
           <label style="display: block; font-size: 0.875rem; font-weight: 500; color: #374151; margin-bottom: 0.5rem;">Selecione o transportador:</label>
           <select id="carrierSelect" style="width: 100%; padding: 0.75rem; border: 2px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; transition: border-color 0.2s; outline: none;" onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#d1d5db'">
@@ -270,8 +322,10 @@ export function LostProductsTab() {
       buttonsStyling: false,
       customClass: {
         popup: "rounded-lg",
-        confirmButton: "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold mr-2 transition-colors shadow-md",
-        cancelButton: "bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+        confirmButton:
+          "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold mr-2 transition-colors shadow-md",
+        cancelButton:
+          "bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
       },
       didOpen: () => {
         const select = document.getElementById("carrierSelect") as HTMLSelectElement;
@@ -294,10 +348,10 @@ export function LostProductsTab() {
 
     try {
       setIsSubmitting(true);
-      
+
       // Chamar endpoint do backend para finalizar lista por data
       await api.post("/invoice/lost-products/finalize-by-date", {
-        date,
+        date: displayDate,
         carrierId,
         freightPercentage,
       });
@@ -312,7 +366,8 @@ export function LostProductsTab() {
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
-          confirmButton: "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+          confirmButton:
+            "bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
         },
       });
     } catch (error: any) {
@@ -324,7 +379,8 @@ export function LostProductsTab() {
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
-          confirmButton: "bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
+          confirmButton:
+            "bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors shadow-md",
         },
       });
     } finally {
@@ -348,9 +404,7 @@ export function LostProductsTab() {
           <Loader2 className="h-8 w-8 text-red-500 animate-spin" />
         </div>
       ) : sortedDates.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          Nenhum produto perdido registrado.
-        </div>
+        <div className="text-center py-8 text-gray-500">Nenhum produto perdido registrado.</div>
       ) : (
         <div className="space-y-4">
           {sortedDates.map((dateKey) => {
@@ -359,42 +413,40 @@ export function LostProductsTab() {
             const isExpanded = expandedDates.has(dateKey);
             // Lista está concluída se a chave começa com "CONCLUIDA_"
             const isCompleted = dateKey.startsWith("CONCLUIDA_");
-            // Usar freightPercentage do primeiro produto se concluído, senão usar estado local
-            const freightPercentage = isCompleted 
-              ? (dateProducts[0]?.freightPercentage || 0)
-              : (freightPercentages[dateKey] || 0);
+            // Usar freightPercentage do primeiro produto se concluído, senão usar confirmedFreightPercentages
+            const freightPercentage = isCompleted
+              ? dateProducts[0]?.freightPercentage || 0
+              : confirmedFreightPercentages[dateKey] || 0;
             const subtotal = dateProducts.reduce((sum, p) => sum + p.refundValue, 0);
             const freightValue = subtotal * (freightPercentage / 100);
             const total = subtotal + freightValue;
+            // Para edição (input), usar freightPercentages (ainda não confirmado)
+            const editingFreightPercentage = freightPercentages[dateKey] || 0;
 
             return (
               <div
                 key={dateKey}
                 className={`border rounded-lg transition-all duration-300 ${
-                  isCompleted
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-white border-gray-200"
+                  isCompleted ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"
                 }`}
               >
                 {/* Header clicável */}
                 <div
                   onClick={() => toggleExpand(dateKey)}
                   className={`p-4 cursor-pointer transition-all duration-200 ${
-                    isCompleted
-                      ? "bg-blue-50 hover:bg-blue-100"
-                      : "bg-red-50 hover:bg-red-100"
+                    isCompleted ? "bg-blue-50 hover:bg-blue-100" : "bg-red-50 hover:bg-red-100"
                   }`}
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 flex items-start gap-3">
-                      <div className={`mt-1 transition-transform duration-300 ${isExpanded ? "rotate-0" : "-rotate-90"}`}>
+                      <div
+                        className={`mt-1 transition-transform duration-300 ${isExpanded ? "rotate-0" : "-rotate-90"}`}
+                      >
                         <ChevronDown className="text-gray-600" size={20} />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="text-lg font-semibold text-gray-800">
-                            Perdidos {displayDate}
-                          </h3>
+                          <h3 className="text-lg font-semibold text-gray-800">Perdidos {displayDate}</h3>
                           {isCompleted && (
                             <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
                               ✅ Concluída
@@ -482,33 +534,44 @@ export function LostProductsTab() {
                     </div>
 
                     {/* Linha azul com Subtotal */}
-                    <div className="bg-blue-100 px-4 py-2 font-semibold text-sm text-gray-800">
-                      Subtotal
-                    </div>
+                    <div className="bg-blue-100 px-4 py-2 font-semibold text-sm text-gray-800">Subtotal</div>
 
-                    {/* Cards de Frete e Confirmar */}
+                    {/* Cards de Frete e Concluir Lista */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       {/* Card Frete */}
                       <div className="bg-gray-50 p-4 rounded-2xl border shadow-sm">
-                        <label className="block text-sm text-gray-600 mb-2">
-                          Frete (%):
-                        </label>
+                        <label className="block text-sm text-gray-600 mb-2">Frete (%):</label>
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={freightPercentage > 0 ? freightPercentage.toString() : ""}
+                          value={editingFreightPercentage > 0 ? editingFreightPercentage.toString() : ""}
                           onChange={(e) => handleFreightChange(dateKey, e.target.value)}
                           onWheel={(e) => e.currentTarget.blur()}
                           disabled={isCompleted || isSubmitting}
                           placeholder="0.00"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-semibold"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-semibold mb-3"
                         />
+                        <button
+                          onClick={() => handleConfirmFreight(dateKey)}
+                          disabled={
+                            isCompleted ||
+                            isSubmitting ||
+                            editingFreightPercentage === (confirmedFreightPercentages[dateKey] || 0)
+                          }
+                          className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                            isCompleted || editingFreightPercentage === (confirmedFreightPercentages[dateKey] || 0)
+                              ? "bg-gray-400 cursor-not-allowed text-white"
+                              : "bg-blue-600 hover:bg-blue-700 text-white"
+                          }`}
+                        >
+                          Confirmar
+                        </button>
                       </div>
 
-                      {/* Card Confirmar */}
+                      {/* Card Concluir Lista */}
                       <div className="bg-gray-50 p-4 rounded-2xl border shadow-sm flex items-end">
                         <button
-                          onClick={() => handleComplete(displayDate, dateProducts)}
+                          onClick={() => handleComplete(dateKey, displayDate, dateProducts)}
                           disabled={isCompleted || isSubmitting}
                           className={`w-full px-6 py-3 rounded-lg font-semibold transition-colors ${
                             isCompleted
@@ -522,7 +585,7 @@ export function LostProductsTab() {
                               Processando...
                             </>
                           ) : (
-                            "Confirmar"
+                            "Concluir Lista"
                           )}
                         </button>
                       </div>
@@ -533,21 +596,15 @@ export function LostProductsTab() {
                       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-blue-800">Subtotal:</p>
-                          <p className="text-lg font-bold text-blue-800 mt-1">
-                            {formatCurrency(subtotal)}
-                          </p>
+                          <p className="text-lg font-bold text-blue-800 mt-1">{formatCurrency(subtotal)}</p>
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-blue-800">Total do Frete:</p>
-                          <p className="text-lg font-bold text-blue-800 mt-1">
-                            {formatCurrency(freightValue)}
-                          </p>
+                          <p className="text-lg font-bold text-blue-800 mt-1">{formatCurrency(freightValue)}</p>
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-medium text-blue-800">Total da Invoice dos Perdidos:</p>
-                          <p className="text-xl font-bold text-blue-800 mt-1">
-                            {formatCurrency(total)}
-                          </p>
+                          <p className="text-xl font-bold text-blue-800 mt-1">{formatCurrency(total)}</p>
                         </div>
                       </div>
                     </div>
