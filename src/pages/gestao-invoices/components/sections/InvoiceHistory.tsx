@@ -191,6 +191,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   const deleteInvoice = (idInvoice: string) => {
     if (!idInvoice) return;
 
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     Swal.fire({
       title: "Tem certeza?",
       text: "Você não poderá reverter isso!",
@@ -272,6 +277,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   };
 
   const sendUpdateProductStatus = async (product: ProductData) => {
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     if (!product) return;
 
     await executeAction(async () => {
@@ -297,6 +307,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   };
 
   const handleDeleteProduct = async (productId: string) => {
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     if (!selectedInvoice) return;
 
     console.log("procuct", productId);
@@ -322,6 +337,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   };
 
   const handleAddNewProduct = async () => {
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     if (!selectedInvoice || !newProduct.productId) return;
 
     await executeAction(async () => {

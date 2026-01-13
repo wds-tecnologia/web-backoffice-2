@@ -150,6 +150,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   }, [taxSpEs, amountTaxCarrieFrete1, amountTaxCarrieFrete2, subTotal]);
 
   const addProduct = () => {
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     const product = products.find((p) => p.id === productForm.productId);
     if (!product) return;
 
@@ -197,63 +202,68 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   };
 
   const saveInvoice = async () => {
-    if (currentInvoice.products.length === 0) {
-      Swal.fire({
-        icon: "warning",
-        title: "Atenção",
-        text: "Adicione pelo menos um produto à invoice!",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
-
-    if (!currentInvoice.number) {
-      Swal.fire({
-        icon: "warning",
-        title: "Atenção",
-        text: "Informe o número da invoice!",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
-
-    if (!currentInvoice.date) {
-      Swal.fire({
-        icon: "warning",
-        title: "Atenção",
-        text: "Informe a data da invoice!",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
-
-    if (!currentInvoice.supplierId) {
-      Swal.fire({
-        icon: "warning",
-        title: "Atenção",
-        text: "Selecione um fornecedor!",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
       return;
     }
 
     await executeAction(async () => {
+      // Validações dentro do executeAction
+      if (currentInvoice.products.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "Atenção",
+          text: "Adicione pelo menos um produto à invoice!",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
+
+      if (!currentInvoice.number) {
+        Swal.fire({
+          icon: "warning",
+          title: "Atenção",
+          text: "Informe o número da invoice!",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
+
+      if (!currentInvoice.date) {
+        Swal.fire({
+          icon: "warning",
+          title: "Atenção",
+          text: "Informe a data da invoice!",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
+
+      if (!currentInvoice.supplierId) {
+        Swal.fire({
+          icon: "warning",
+          title: "Atenção",
+          text: "Selecione um fornecedor!",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
       const now = new Date();
       const time = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
       const dateWithTime = new Date(`${currentInvoice.date}T${time}`);
