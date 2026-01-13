@@ -4,6 +4,7 @@ import { api } from "../../../../services/api";
 import { Invoice } from "../types/invoice"; // Se necessário, ajuste o caminho do tipo
 import { Product } from "./ProductsTab";
 import Swal from "sweetalert2";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 export type InvoiceData = {
   id: string;
@@ -103,7 +104,6 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
   const [isSavingId, setIsSavingId] = useState("");
   const [showAddProductForm, setShowAddProductForm] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
@@ -118,6 +118,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
     // received e receivedQuantity têm valores padrão
   });
   const [valorRaw, setValorRaw] = useState("");
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   useEffect(() => {
     fetchInvoicesAndSuppliers();
@@ -203,34 +204,32 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
       },
     }).then((result) => {
       if (result.isConfirmed) {
-        api
-          .delete(`/invoice/delete/${idInvoice}`)
-          .then(() => {
-            setInvoices((prevInvoices) => prevInvoices.filter((invoice) => invoice.id !== idInvoice));
-            Swal.fire({
-              icon: "success",
-              title: "Deletado!",
-              text: "Invoice deletada com sucesso.",
-              confirmButtonText: "Ok",
-              buttonsStyling: false,
-              customClass: {
-                confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-              },
-            });
-          })
-          .catch((error) => {
-            console.error("Erro ao deletar invoice:", error);
-            Swal.fire({
-              icon: "error",
-              title: "Error ",
-              text: "Erro ao deletar invoice. Tente novamente.",
-              confirmButtonText: "Ok",
-              buttonsStyling: false,
-              customClass: {
-                confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-              },
-            });
+        executeAction(async () => {
+          await api.delete(`/invoice/delete/${idInvoice}`);
+          setInvoices((prevInvoices) => prevInvoices.filter((invoice) => invoice.id !== idInvoice));
+          Swal.fire({
+            icon: "success",
+            title: "Deletado!",
+            text: "Invoice deletada com sucesso.",
+            confirmButtonText: "Ok",
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+            },
           });
+        }, `deleteInvoice-${idInvoice}`).catch((error) => {
+          console.error("Erro ao deletar invoice:", error);
+          Swal.fire({
+            icon: "error",
+            title: "Error ",
+            text: "Erro ao deletar invoice. Tente novamente.",
+            confirmButtonText: "Ok",
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+            },
+          });
+        });
       }
     });
   };
@@ -275,9 +274,8 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
   const sendUpdateProductStatus = async (product: ProductData) => {
     if (!product) return;
 
-    try {
+    await executeAction(async () => {
       setIsSavingId(product.id);
-      setIsSaving(true);
       await api.patch("/invoice/update/product", {
         idProductInvoice: product.id,
         bodyupdate: {
@@ -291,11 +289,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
       setSelectedInvoice(findInvoice);
 
       setInvoices(invoiceResponse.data);
-    } catch (error) {
+      setIsSavingId("");
+    }, `updateProduct-${product.id}`).catch((error) => {
       console.error("Erro ao buscar dados:", error);
-    } finally {
-      setIsSaving(false);
-    }
+      setIsSavingId("");
+    });
   };
 
   const handleDeleteProduct = async (productId: string) => {
@@ -303,9 +301,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
 
     console.log("procuct", productId);
 
-    try {
-      setIsSaving(true);
-
+    await executeAction(async () => {
       // Chama a API para deletar o produto
       await api.delete(`/invoice/product/delete/${productId}`, {
         data: {
@@ -320,19 +316,15 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
 
       setSelectedInvoice(findInvoice);
       setInvoices(invoiceResponse.data);
-    } catch (error) {
+    }, `deleteProduct-${productId}`).catch((error) => {
       console.error("Erro ao deletar produto:", error);
-    } finally {
-      setIsSaving(false);
-    }
+    });
   };
 
   const handleAddNewProduct = async () => {
     if (!selectedInvoice || !newProduct.productId) return;
 
-    try {
-      setIsSaving(true);
-
+    await executeAction(async () => {
       const total = Number(newProduct.value) * newProduct.quantity;
 
       await api.post("/invoice/product/add-invoice", {
@@ -363,13 +355,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
         value: "",
         weight: "",
       });
+      setValorRaw("");
       setShowAddProductForm(false);
-    } catch (error) {
+    }, "addNewProduct").catch((error) => {
       console.error("Erro ao adicionar produto:", error);
-      // Você pode adicionar tratamento de erro mais específico aqui
-    } finally {
-      setIsSaving(false);
-    }
+    });
   };
 
   const invoicesToShow = invoices.filter((invoice) => !invoice.paid && !invoice.completed);
@@ -382,7 +372,11 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
           <History className="mr-2 inline" size={18} />
           Histórico de Invoices
         </div>
-        <button onClick={() => fetchInvoicesAndSuppliers()} className="flex justify-center items-center">
+        <button
+          onClick={() => fetchInvoicesAndSuppliers()}
+          className="flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isActionLoading}
+        >
           <RotateCcw className="mr-2 inline" size={24} />
         </button>
       </h2>
@@ -479,8 +473,9 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                             {invoice.paid && invoice.completed ? (
                               <button
                                 onClick={() => openModal(invoice, false)}
-                                className="text-blue-600 hover:text-blue-900"
+                                className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="Visualizar"
+                                disabled={isActionLoading}
                               >
                                 <Eye size={16} />
                               </button>
@@ -489,15 +484,17 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                               <>
                                 <button
                                   onClick={() => openModal(invoice, false)}
-                                  className="text-blue-600 hover:text-blue-900"
+                                  className="text-blue-600 hover:text-blue-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Visualizar"
+                                  disabled={isActionLoading}
                                 >
                                   <Eye size={16} />
                                 </button>
                                 <button
                                   onClick={() => openModal(invoice, true)}
-                                  className="text-green-600 hover:text-green-900"
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Editar"
+                                  disabled={isActionLoading}
                                 >
                                   <Edit size={16} />
                                 </button>
@@ -507,15 +504,17 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                               <>
                                 <button
                                   onClick={() => openModal(invoice, true)}
-                                  className="text-green-600 hover:text-green-900"
+                                  className="text-green-600 hover:text-green-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Editar"
+                                  disabled={isActionLoading}
                                 >
                                   <Edit size={16} />
                                 </button>
                                 <button
                                   onClick={() => deleteInvoice(invoice.id)}
-                                  className="text-red-600 hover:text-red-900"
+                                  className="text-red-600 hover:text-red-900 disabled:opacity-50 disabled:cursor-not-allowed"
                                   title="Deletar"
+                                  disabled={isActionLoading}
                                 >
                                   <Trash size={16} />
                                 </button>
@@ -727,10 +726,10 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                     </button>
                     <button
                       onClick={handleAddNewProduct}
-                      disabled={!newProduct.productId || isSaving}
-                      className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300"
+                      disabled={!newProduct.productId || isActionLoading}
+                      className="px-3 py-1 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-green-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSaving ? (
+                      {isActionLoading ? (
                         <>
                           <Loader2 className="animate-spin mr-2 inline" size={14} />
                           Salvando...
@@ -850,11 +849,15 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                               <div className="flex justify-end items-center ">
                                 <button
                                   onClick={() => handleDeleteProduct(product.id)}
-                                  disabled={isSaving}
+                                  disabled={isActionLoading}
                                   className={`flex items-center justify-center gap-2 text-sm font-medium px-3 py-1 rounded-md shadow-sm transition 
-      ${isSaving ? "bg-gray-400 cursor-not-allowed opacity-60 text-white" : "bg-red-600 hover:bg-red-500 text-white"}`}
+      ${
+        isActionLoading
+          ? "bg-gray-400 cursor-not-allowed opacity-60 text-white"
+          : "bg-red-600 hover:bg-red-500 text-white"
+      }`}
                                 >
-                                  {isSaving ? (
+                                  {isActionLoading ? (
                                     <>
                                       <Loader2 className="animate-spin" size={16} /> Removendo...
                                     </>

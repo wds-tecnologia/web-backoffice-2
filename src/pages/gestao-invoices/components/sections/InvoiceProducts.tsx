@@ -5,6 +5,7 @@ import { Invoice } from "../types/invoice";
 import Swal from "sweetalert2";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 export type InvoiceProduct = {
   id: string;
@@ -39,7 +40,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const [showProductForm, setShowProductForm] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
-  const [valorRaw, setValorRaw] = useState(""); 
+  const [valorRaw, setValorRaw] = useState("");
   const [productForm, setProductForm] = useState({
     productId: "",
     quantity: "",
@@ -49,8 +50,8 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     price: "",
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -62,7 +63,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         ]);
         console.log("Produtos recebidos do backend:", productsResponse.data);
         // O backend agora retorna { products: [...], totalProducts: ..., page: ..., limit: ..., totalPages: ... }
-        const productsList = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data.products || [];
+        const productsList = Array.isArray(productsResponse.data)
+          ? productsResponse.data
+          : productsResponse.data.products || [];
         console.log("Lista de produtos processada:", productsList);
         // Verificar se os produtos têm priceweightAverage
         if (productsList.length > 0) {
@@ -250,10 +253,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       return;
     }
 
-    setIsSaving(true);
-    try {
+    await executeAction(async () => {
       const now = new Date();
-      const time = now.toTimeString().split(' ')[0]; // "HH:MM:SS"
+      const time = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
       const dateWithTime = new Date(`${currentInvoice.date}T${time}`);
 
       const response = await api.post("/invoice/create", {
@@ -269,7 +271,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       if (response.data?.numberWasAdjusted) {
         const originalNumber = response.data.originalNumber || currentInvoice.number;
         const newNumber = response.data.number;
-        
+
         Swal.fire({
           icon: "info",
           title: "Número Ajustado Automaticamente",
@@ -287,9 +289,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       } else {
         setOpenNotification({
-          type: 'success',
-          title: 'Sucesso!',
-          notification: 'Invoice salva com sucesso!'
+          type: "success",
+          title: "Sucesso!",
+          notification: "Invoice salva com sucesso!",
         });
       }
 
@@ -297,11 +299,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       try {
         const nextNumberResponse = await api.get("/invoice/next-number");
         const nextNumber = nextNumberResponse.data?.nextNumber || `INV-${Date.now()}`;
-        
+
         setCurrentInvoice({
           id: null,
           number: nextNumber,
-          date: new Date().toLocaleDateString('en-CA'),
+          date: new Date().toLocaleDateString("en-CA"),
           supplierId: "",
           products: [],
           carrierId: "",
@@ -324,7 +326,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         setCurrentInvoice({
           id: null,
           number: `INV-${Date.now()}`,
-          date: new Date().toLocaleDateString('en-CA'),
+          date: new Date().toLocaleDateString("en-CA"),
           supplierId: "",
           products: [],
           carrierId: "",
@@ -343,34 +345,14 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       }
 
-      // setCurrentInvoice({
-      //   id: null,
-      //   number: '',
-      //   date: new Date().toISOString().split('T')[0],
-      //   supplierId: '',
-      //   products: [],
-      //   carrierId: '',
-      //   carrier2Id: '',
-      //   taxaSpEs: 0.0,
-      //   paid: false,
-      //   paidDate: null,
-      //   paidDollarRate: null,
-      //   completed: false,
-      //   completedDate: null,
-      //   amountTaxcarrier: 0,
-      //   amountTaxcarrier2: 0,
-      //   amountTaxSpEs: 0,
-      //   overallValue: 0,
-      //   subAmount: 0
-      // });
       if (props.onInvoiceSaved) {
         props.onInvoiceSaved();
       }
-    } catch (error: any) {
+    }, "saveInvoice").catch((error: any) => {
       console.error("Erro ao salvar a invoice:", error);
-      
+
       const errorMessage = error?.response?.data?.message || error?.message || "Erro ao salvar a invoice";
-      
+
       Swal.fire({
         icon: "error",
         title: "Erro",
@@ -381,9 +363,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
         },
       });
-    } finally {
-      setIsSaving(false);
-    }
+    });
   };
 
   useEffect(() => {
@@ -411,8 +391,8 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         {!showProductForm && (
           <button
             onClick={() => setShowProductForm(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center"
-            disabled={isSaving}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isActionLoading}
           >
             <Plus className="mr-1 inline" size={16} />
             Adicionar Produto
@@ -431,37 +411,37 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                 value={productForm.productId}
                 onChange={(e: any) => {
                   const selectedProduct = products.find((p) => p.id === e);
-                  
+
                   console.log("Produto selecionado:", selectedProduct);
-                  
+
                   if (selectedProduct) {
                     // Preencher preço automaticamente
                     const price = selectedProduct.priceweightAverage ?? 0;
                     console.log("Preço do produto:", price);
                     const priceString = price > 0 ? price.toString() : "";
-                    
+
                     // Atualizar valorRaw com o preço (sem formatação inicial, será formatado no onBlur)
                     setValorRaw(priceString);
-                    
+
                     // Preencher peso automaticamente
                     const weight = selectedProduct.weightAverage ?? 0;
                     console.log("Peso do produto:", weight);
                     const weightString = weight > 0 ? weight.toString() : "";
-                    
-                    const newForm = { 
-                      ...productForm, 
+
+                    const newForm = {
+                      ...productForm,
                       productId: e,
                       value: priceString,
-                      weight: weightString
+                      weight: weightString,
                     };
-                    
+
                     // Recalcular total automaticamente se houver quantidade
                     if (price > 0 && productForm.quantity) {
                       const quantity = parseFloat(productForm.quantity) || 0;
                       const total = quantity * price;
                       newForm.total = total.toFixed(2);
                     }
-                    
+
                     setProductForm(newForm);
                     console.log("Form atualizado:", newForm);
                   } else {
@@ -484,29 +464,31 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                 onChange={(e) => {
                   const code = e.target.value.trim();
                   if (code) {
-                    const productByCode = products.find((p) => p.code === code || p.code?.toLowerCase() === code.toLowerCase());
+                    const productByCode = products.find(
+                      (p) => p.code === code || p.code?.toLowerCase() === code.toLowerCase()
+                    );
                     if (productByCode) {
                       // Preencher produto automaticamente
                       const price = productByCode.priceweightAverage ?? 0;
                       const priceString = price > 0 ? price.toString() : "";
                       setValorRaw(priceString);
-                      
+
                       const weight = productByCode.weightAverage ?? 0;
                       const weightString = weight > 0 ? weight.toString() : "";
-                      
-                      const newForm = { 
-                        ...productForm, 
+
+                      const newForm = {
+                        ...productForm,
                         productId: productByCode.id,
                         value: priceString,
-                        weight: weightString
+                        weight: weightString,
                       };
-                      
+
                       if (price > 0 && productForm.quantity) {
                         const quantity = parseFloat(productForm.quantity) || 0;
                         const total = quantity * price;
                         newForm.total = total.toFixed(2);
                       }
-                      
+
                       setProductForm(newForm);
                     }
                   }
@@ -516,29 +498,31 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                     e.preventDefault();
                     const code = e.currentTarget.value.trim();
                     if (code) {
-                      const productByCode = products.find((p) => p.code === code || p.code?.toLowerCase() === code.toLowerCase());
+                      const productByCode = products.find(
+                        (p) => p.code === code || p.code?.toLowerCase() === code.toLowerCase()
+                      );
                       if (productByCode) {
                         // Preencher produto automaticamente
                         const price = productByCode.priceweightAverage ?? 0;
                         const priceString = price > 0 ? price.toString() : "";
                         setValorRaw(priceString);
-                        
+
                         const weight = productByCode.weightAverage ?? 0;
                         const weightString = weight > 0 ? weight.toString() : "";
-                        
-                        const newForm = { 
-                          ...productForm, 
+
+                        const newForm = {
+                          ...productForm,
                           productId: productByCode.id,
                           value: priceString,
-                          weight: weightString
+                          weight: weightString,
                         };
-                        
+
                         if (price > 0 && productForm.quantity) {
                           const quantity = parseFloat(productForm.quantity) || 0;
                           const total = quantity * price;
                           newForm.total = total.toFixed(2);
                         }
-                        
+
                         setProductForm(newForm);
                       }
                     }
@@ -587,35 +571,33 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                   const numericValue = parseFloat(newValue) || 0;
                   setProductForm({ ...productForm, value: isNaN(numericValue) ? "" : numericValue.toString() });
                 }}
-
                 onBlur={(e) => {
-                // Formata apenas se houver valor
-                if (valorRaw) {
-                  const numericValue = parseFloat(valorRaw);
-                  if (!isNaN(numericValue)) {
-                    // Formata mantendo o sinal negativo se existir
-                    const formattedValue = numericValue.toLocaleString("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    });
-                    setValorRaw(formattedValue);
-                    setProductForm({ ...productForm, value: numericValue.toString() });
-                    // setValorOperacao(numericValue);
+                  // Formata apenas se houver valor
+                  if (valorRaw) {
+                    const numericValue = parseFloat(valorRaw);
+                    if (!isNaN(numericValue)) {
+                      // Formata mantendo o sinal negativo se existir
+                      const formattedValue = numericValue.toLocaleString("en-US", {
+                        style: "currency",
+                        currency: "USD",
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      });
+                      setValorRaw(formattedValue);
+                      setProductForm({ ...productForm, value: numericValue.toString() });
+                      // setValorOperacao(numericValue);
+                    }
                   }
-                }
-              }}
-              onFocus={(e) => {
-                // Remove formatação quando o input recebe foco
-                if (valorRaw) {
-                  const numericValue = parseFloat(valorRaw.replace(/[^0-9.-]/g, ""));
-                  if (!isNaN(numericValue)) {
-                    setValorRaw(numericValue.toString());
+                }}
+                onFocus={(e) => {
+                  // Remove formatação quando o input recebe foco
+                  if (valorRaw) {
+                    const numericValue = parseFloat(valorRaw.replace(/[^0-9.-]/g, ""));
+                    if (!isNaN(numericValue)) {
+                      setValorRaw(numericValue.toString());
+                    }
                   }
-                }
-              }}
-
+                }}
                 className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 placeholder="$"
               />
@@ -649,14 +631,16 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
             <div className="flex items-end">
               <button
                 onClick={() => setShowProductForm(false)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded mr-2"
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
               >
                 <X className="mr-1 inline" size={16} />
                 Cancelar
               </button>
               <button
                 onClick={addProduct}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
               >
                 <Plus className="mr-1 inline" size={16} />
                 Adicionar
@@ -711,7 +695,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                     {product.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-2 text-center">
-                    <button onClick={() => deleteProduct(index)} className="text-red-600 hover:text-red-800">
+                    <button
+                      onClick={() => deleteProduct(index)}
+                      className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isActionLoading}
+                    >
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -810,10 +798,10 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         </div>
         <button
           onClick={saveInvoice}
-          className="w-full bg-blue-600 mt-4 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex items-center justify-center"
-          disabled={isSaving}
+          className="w-full bg-blue-600 mt-4 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={isActionLoading}
         >
-          {isSaving ? (
+          {isActionLoading ? (
             <>
               <Loader2 className="animate-spin mr-2" size={18} />
               Salvando...
