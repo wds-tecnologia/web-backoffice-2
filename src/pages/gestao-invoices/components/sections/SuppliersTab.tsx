@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Users, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 export interface Supplier {
   id: string;
@@ -18,6 +19,7 @@ export function SuppliersTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -50,6 +52,8 @@ export function SuppliersTab() {
   };
 
   const handleDelete = async (supplier: Supplier) => {
+    if (isActionLoading) return;
+    
     const result = await Swal.fire({
       title: "Tem certeza?",
       text: "Você não poderá reverter isso!",
@@ -65,27 +69,16 @@ export function SuppliersTab() {
     });
 
     if (result.isConfirmed) {
-      setIsSubmitting(true);
-      try {
+      await executeAction(async () => {
         await api.delete(`/invoice/supplier/${supplier.id}`);
         await api.delete(`/invoice/box/user/name/${supplier.name}`);
         await fetchData();
-        // Swal.fire({
-        //   icon: "success",
-        //   title: "Sucesso!",
-        //   text: "Fornecedor excluído permanentemente.",
-        //   confirmButtonText: "Ok",
-        //   buttonsStyling: false,
-        //   customClass: {
-        //     confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-        //   },
-        // });
         setOpenNotification({
           type: 'success',
           title: 'Sucesso!',
           notification: 'Fornecedor excluído permanentemente!'
         });
-      } catch (error) {
+      }, `deleteSupplier-${supplier.id}`).catch((error) => {
         console.error("Erro ao excluir fornecedor:", error);
         Swal.fire({
           icon: "error",
@@ -97,44 +90,43 @@ export function SuppliersTab() {
             confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
           },
         });
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     }
   };
 
   const handleSave = async () => {
+    if (isActionLoading) return;
     if (!currentSupplier) return;
 
-    const trimmedName = currentSupplier.name.trim();
-    const trimmedPhone = currentSupplier.phone.trim();
-    if (trimmedName === "" || trimmedPhone === "") {
-      Swal.fire({
-        icon: "error",
-        title: "Erro",
-        text: "Nome e telefone do fornecedor são obrigatórios.",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
+    await executeAction(async () => {
+      const trimmedName = currentSupplier.name.trim();
+      const trimmedPhone = currentSupplier.phone.trim();
+      if (trimmedName === "" || trimmedPhone === "") {
+        Swal.fire({
+          icon: "error",
+          title: "Erro",
+          text: "Nome e telefone do fornecedor são obrigatórios.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
 
-    const supplierExists = suppliers.some(
-      (supplier) =>
-        supplier.name.toLowerCase() === trimmedName.toLowerCase() &&
-        (!currentSupplier.id || supplier.id !== currentSupplier.id) &&
-        supplier.active !== false
-    );
+      const supplierExists = suppliers.some(
+        (supplier) =>
+          supplier.name.toLowerCase() === trimmedName.toLowerCase() &&
+          (!currentSupplier.id || supplier.id !== currentSupplier.id) &&
+          supplier.active !== false
+      );
 
-    if (supplierExists) {
-      Swal.fire("Erro", "Já existe um fornecedor cadastrado com este nome.", "error");
-      return;
-    }
+      if (supplierExists) {
+        Swal.fire("Erro", "Já existe um fornecedor cadastrado com este nome.", "error");
+        return;
+      }
 
-    setIsSubmitting(true);
-    try {
+      try {
       if (currentSupplier.id) {
         await api.patch(`/invoice/supplier/${currentSupplier.id}`, currentSupplier);
         // Swal.fire({
@@ -177,23 +169,24 @@ export function SuppliersTab() {
         notification: 'Fornecedor criado com sucesso!'
       });
       }
-      await fetchData();
-      setShowModal(false);
-      setCurrentSupplier(null);
-    } catch (error) {
-      console.error("Erro ao salvar fornecedor:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Erro!",
-        text: "Não foi possível salvar o fornecedor.",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+        await fetchData();
+        setShowModal(false);
+        setCurrentSupplier(null);
+      } catch (error) {
+        console.error("Erro ao salvar fornecedor:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Erro!",
+          text: "Não foi possível salvar o fornecedor.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+      }
+    }, "saveSupplier").catch((error) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   useEffect(() => {
@@ -226,7 +219,7 @@ export function SuppliersTab() {
             setShowModal(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
-          disabled={isLoading || isSubmitting}
+          disabled={isLoading || isActionLoading}
         >
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
           Novo Fornecedor
@@ -271,14 +264,14 @@ export function SuppliersTab() {
                           <button
                             onClick={() => handleEdit(supplier)}
                             className="text-blue-600 hover:text-blue-900 mr-3"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(supplier)}
                             className="text-red-600 hover:text-red-900"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 size={16} />}
                           </button>

@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Users, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 interface Partner {
   id: string;
@@ -25,6 +26,7 @@ export function OtherPartnersTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -57,6 +59,8 @@ export function OtherPartnersTab() {
   };
 
   const handleDelete = async (partner: Partner) => {
+    if (isActionLoading) return;
+    
     const result = await Swal.fire({
       title: "Tem certeza?",
       text: "Você não poderá reverter isso!",
@@ -72,27 +76,16 @@ export function OtherPartnersTab() {
     });
 
     if (result.isConfirmed) {
-      setIsSubmitting(true);
-      try {
+      await executeAction(async () => {
         await api.delete(`/invoice/partner/${partner.id}`);
         await api.delete(`/invoice/box/user/name/${partner.name}`);
         await fetchData();
-        // Swal.fire({
-        //   icon: "success",
-        //   title: "Sucesso!",
-        //   text: "Parceiro excluído permanentemente.",
-        //   confirmButtonText: "Ok",
-        //   buttonsStyling: false,
-        //   customClass: {
-        //     confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-        //   },
-        // });
         setOpenNotification({
           type: 'success',
           title: 'Sucesso!',
           notification: 'Parceiro excluído permanentemente!'
         });
-      } catch (error) {
+      }, `deletePartner-${partner.id}`).catch((error) => {
         console.error("Erro ao excluir Parceiro:", error);
         Swal.fire({
           icon: "error",
@@ -104,52 +97,51 @@ export function OtherPartnersTab() {
             confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
           },
         });
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     }
   };
 
   const handleSave = async () => {
+    if (isActionLoading) return;
     if (!currentpartner) return;
 
-    const trimmedName = currentpartner.name.trim();
-    const trimmedPhone = currentpartner.phone.trim();
+    await executeAction(async () => {
+      const trimmedName = currentpartner.name.trim();
+      const trimmedPhone = currentpartner.phone.trim();
 
-    if (trimmedName === "" || trimmedPhone === "") {
-      Swal.fire({
-        icon: "error",
-        title: "Erro",
-        text: "Nome e telefone do Parceiro são obrigatórios.",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
+      if (trimmedName === "" || trimmedPhone === "") {
+        Swal.fire({
+          icon: "error",
+          title: "Erro",
+          text: "Nome e telefone do Parceiro são obrigatórios.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
 
-    // 🔒 Impede duplicidade de nome ao criar ou renomear
-    const nomeDuplicado = partners.some(
-      (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase() && p.id !== currentpartner.id // permite editar o próprio nome
-    );
+      // 🔒 Impede duplicidade de nome ao criar ou renomear
+      const nomeDuplicado = partners.some(
+        (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase() && p.id !== currentpartner.id // permite editar o próprio nome
+      );
 
-    if (nomeDuplicado) {
-      Swal.fire({
-        icon: "warning",
-        title: "Nome já existe",
-        text: "Já existe um parceiro com esse nome.",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-yellow-600 text-white hover:bg-yellow-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
+      if (nomeDuplicado) {
+        Swal.fire({
+          icon: "warning",
+          title: "Nome já existe",
+          text: "Já existe um parceiro com esse nome.",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-yellow-600 text-white hover:bg-yellow-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
 
-    setIsSubmitting(true);
-    try {
+      try {
       if (currentpartner.id) {
         await api.patch(`/invoice/partner/${currentpartner.id}`, currentpartner);
         // Swal.fire({
@@ -206,28 +198,24 @@ export function OtherPartnersTab() {
         });
       }
 
-      await fetchData();
-      setShowModal(false);
-      setCurrentpartner(null);
-    } catch (error) {
-      console.error("Erro ao salvar Parceiro:", error);
-      // Swal.fire({
-      //   icon: "error",
-      //   title: "Erro!",
-      //   text: "Não foi possível salvar o Parceiro.",
-      //   buttonsStyling: false,
-      //   customClass: {
-      //     confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-      //   },
-      // });
-      setOpenNotification({
-        type: 'success',
-        title: 'Sucesso!',
-        notification: 'Não foi possível salvar o Parceiro!'
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+        await fetchData();
+        setShowModal(false);
+        setCurrentpartner(null);
+      } catch (error) {
+        console.error("Erro ao salvar Parceiro:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Erro!",
+          text: "Não foi possível salvar o Parceiro.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+      }
+    }, "savePartner").catch((error) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   useEffect(() => {
@@ -261,7 +249,7 @@ export function OtherPartnersTab() {
             setShowModal(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
-          disabled={isLoading || isSubmitting}
+          disabled={isLoading || isActionLoading}
         >
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
           Novo Parceiro
@@ -312,14 +300,14 @@ export function OtherPartnersTab() {
                           <button
                             onClick={() => handleEdit(partner)}
                             className="text-blue-600 hover:text-blue-900 mr-3"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(partner)}
                             className="text-red-600 hover:text-red-900"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 size={16} />}
                           </button>

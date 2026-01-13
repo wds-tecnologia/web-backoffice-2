@@ -4,6 +4,7 @@ import { formatCurrency } from "../../../cambiobackoffice/formatCurrencyUtil";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 interface Carrier {
   id: string;
@@ -20,6 +21,7 @@ export function CarriersTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   async function fetchCarriers() {
     setIsLoading(true);
@@ -57,6 +59,8 @@ export function CarriersTab() {
   };
 
   const handleDelete = async (id: string) => {
+    if (isActionLoading) return;
+    
     const result = await Swal.fire({
       title: "Tem certeza?",
       text: "Você não poderá reverter isso!",
@@ -72,25 +76,15 @@ export function CarriersTab() {
     });
 
     if (result.isConfirmed) {
-      try {
-        setIsSubmitting(true);
+      await executeAction(async () => {
         await api.delete(`/invoice/carriers/${id}`);
         await fetchCarriers();
-        // Swal.fire({
-        //   icon: "success",
-        //   title: "Excluído!",
-        //   text: "O freteiro foi removido com sucesso.",
-        //   buttonsStyling: false,
-        //   customClass: {
-        //     confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-        //   },
-        // });
         setOpenNotification({
           type: 'success',
           title: 'Excluído!',
           notification: 'O freteiro foi removido com sucesso!'
         });
-      } catch (error) {
+      }, `deleteCarrier-${id}`).catch((error) => {
         console.error("Erro ao excluir freteiro:", error);
         Swal.fire({
           icon: "error",
@@ -101,87 +95,68 @@ export function CarriersTab() {
             confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
           },
         });
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     }
   };
 
   const handleSave = async () => {
+    if (isActionLoading) return;
     if (!currentCarrier) return;
-    try {
-      setIsSubmitting(true);
+    
+    await executeAction(async () => {
+      try {
 
-      const trimmedName = currentCarrier.name.trim();
+        const trimmedName = currentCarrier.name.trim();
 
-      const carrierExists = carriers.some(
-        (supplier) =>
-          supplier.name.toLowerCase() === trimmedName.toLowerCase() &&
-          (!currentCarrier.id || supplier.id !== currentCarrier.id) &&
-          supplier.active !== false
-      );
+        const carrierExists = carriers.some(
+          (supplier) =>
+            supplier.name.toLowerCase() === trimmedName.toLowerCase() &&
+            (!currentCarrier.id || supplier.id !== currentCarrier.id) &&
+            supplier.active !== false
+        );
 
-      if (carrierExists) {
-        Swal.fire("Erro", "Já existe um freteiro cadastrado com este nome.", "error");
-        return;
+        if (carrierExists) {
+          Swal.fire("Erro", "Já existe um freteiro cadastrado com este nome.", "error");
+          return;
+        }
+
+        if (currentCarrier.id) {
+          // Edição
+          await api.patch(`/invoice/carriers/${currentCarrier.id}`, currentCarrier);
+          setOpenNotification({
+            type: 'success',
+            title: 'Sucesso!',
+            notification: 'Freteiro atualizado com sucesso!'
+          });
+        } else {
+          // Novo
+          const response = await api.post("/invoice/carriers", currentCarrier);
+          setCarriers((prev) => [...prev, response.data]);
+          setOpenNotification({
+            type: 'success',
+            title: 'Sucesso!',
+            notification: 'Freteiro criado com sucesso!'
+          });
+        }
+
+        setShowModal(false);
+        setCurrentCarrier(null);
+        await fetchCarriers();
+      } catch (error) {
+        console.error("Erro ao salvar freteiro:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Erro!",
+          text: "Ocorreu um erro ao salvar o freteiro.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
       }
-
-      if (currentCarrier.id) {
-        // Edição
-        await api.patch(`/invoice/carriers/${currentCarrier.id}`, currentCarrier);
-        // Swal.fire({
-        //   icon: "success",
-        //   title: "Sucesso!",
-        //   text: "Freteiro atualizado com sucesso.",
-        //   confirmButtonText: "Ok",
-        //   buttonsStyling: false,
-        //   customClass: {
-        //     confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-        //   },
-        // });
-        setOpenNotification({
-        type: 'success',
-        title: 'Sucesso!',
-        notification: 'Freteiro atualizado com sucesso!'
-      });
-      } else {
-        // Novo
-        const response = await api.post("/invoice/carriers", currentCarrier);
-        setCarriers((prev) => [...prev, response.data]);
-        // Swal.fire({
-        //   icon: "success",
-        //   title: "Sucesso!",
-        //   text: "Freteiro criado com sucesso.",
-        //   confirmButtonText: "Ok",
-        //   buttonsStyling: false,
-        //   customClass: {
-        //     confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
-        //   },
-        // });
-        setOpenNotification({
-        type: 'success',
-        title: 'Sucesso!',
-        notification: 'Freteiro criado com sucesso!'
-      });
-      }
-
-      setShowModal(false);
-      setCurrentCarrier(null);
-      await fetchCarriers();
-    } catch (error) {
-      console.error("Erro ao salvar freteiro:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Erro!",
-        text: "Ocorreu um erro ao salvar o freteiro.",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    }, "saveCarrier").catch((error) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   useEffect(() => {
@@ -210,7 +185,7 @@ export function CarriersTab() {
             setShowModal(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
-          disabled={isLoading}
+          disabled={isLoading || isActionLoading}
         >
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
           Novo Freteiro
@@ -263,14 +238,14 @@ export function CarriersTab() {
                           <button
                             onClick={() => handleEdit(carrier)}
                             className="text-blue-600 hover:text-blue-900 mr-3"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(carrier.id)}
                             className="text-red-600 hover:text-red-900"
-                            disabled={isSubmitting}
+                            disabled={isActionLoading}
                           >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 size={16} />}
                           </button>

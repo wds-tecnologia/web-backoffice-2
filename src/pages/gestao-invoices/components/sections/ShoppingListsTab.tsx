@@ -26,6 +26,7 @@ import { api } from "../../../../services/api";
 import Swal from "sweetalert2";
 import { useNotification } from "../../../../hooks/notification";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 interface Product {
   id: string;
@@ -130,6 +131,7 @@ export function ShoppingListsTab() {
   const [existingItemsInTargetList, setExistingItemsInTargetList] = useState<ShoppingListItem[]>([]);
   const [transferMode, setTransferMode] = useState<"transfer" | "duplicate">("transfer"); // "transfer" = mover, "duplicate" = copiar
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   const [newList, setNewList] = useState({
     name: "",
@@ -885,89 +887,95 @@ export function ShoppingListsTab() {
   };
 
   const handleSavePurchasedQuantity = async (allowLess: boolean = false) => {
+    // Proteção imediata contra cliques duplos
+    if (isActionLoading) {
+      return;
+    }
+
     if (!selectedItem) return;
 
-    // Calcular quantidade total (já comprada + adicional)
-    const purchasedQty =
-      typeof purchasedQuantity === "string"
-        ? purchasedQuantity === ""
-          ? 0
-          : parseFloat(purchasedQuantity)
-        : purchasedQuantity;
-    const additionalQty =
-      typeof additionalQuantity === "string"
-        ? additionalQuantity === ""
-          ? 0
-          : parseFloat(additionalQuantity)
-        : additionalQuantity;
-    const totalQuantity = purchasedQty + additionalQty;
+    await executeAction(async () => {
+      // Calcular quantidade total (já comprada + adicional)
+      const purchasedQty =
+        typeof purchasedQuantity === "string"
+          ? purchasedQuantity === ""
+            ? 0
+            : parseFloat(purchasedQuantity)
+          : purchasedQuantity;
+      const additionalQty =
+        typeof additionalQuantity === "string"
+          ? additionalQuantity === ""
+            ? 0
+            : parseFloat(additionalQuantity)
+          : additionalQuantity;
+      const totalQuantity = purchasedQty + additionalQty;
 
-    if (totalQuantity < 0) {
-      setOpenNotification({
-        type: "error",
-        title: "Erro!",
-        notification: "Quantidade total não pode ser negativa!",
-      });
-      return;
-    }
-
-    // Validar: se escolheu atualizar quantidade pedida, o mínimo é 1
-    if (updateOrderedQuantity && totalQuantity < 1) {
-      setOpenNotification({
-        type: "error",
-        title: "Erro!",
-        notification: "A quantidade pedida não pode ser zero! O mínimo é 1 unidade.",
-      });
-      return;
-    }
-
-    // SEMPRE mostrar confirmação final antes de concluir a compra
-    const difference = selectedItem.quantity - totalQuantity;
-    const originalOrderedQty = selectedItem.quantity;
-    let confirmMessage = "";
-    let confirmTitle = "";
-
-    if (totalQuantity > selectedItem.quantity) {
-      // Comprou mais que pedido - sempre atualizar pedido
-      confirmTitle = "Confirmar Compra - Quantidade Maior que Pedida";
-      confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades (${
-        totalQuantity - originalOrderedQty
-      } a mais)\n\nO pedido será atualizado para ${totalQuantity} unidades para acompanhar a compra.\n\nPedido original era ${originalOrderedQty} unidades.`;
-    } else if (totalQuantity < selectedItem.quantity) {
-      // Comprou menos que pedido - perguntar se quer atualizar pedido ou manter pendente
-      if (updateOrderedQuantity) {
-        confirmTitle = "Confirmar Compra - Atualizar Quantidade Pedida";
-        confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades\n\nO pedido será atualizado de ${originalOrderedQty} para ${totalQuantity} unidades.\n\nPedido original era ${originalOrderedQty} unidades.`;
-      } else {
-        confirmTitle = "Confirmar Compra - Manter Pedido Original";
-        confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades\n\nFicam ${difference} unidades pendentes.\n\nO pedido original de ${originalOrderedQty} unidades será mantido.`;
+      if (totalQuantity < 0) {
+        setOpenNotification({
+          type: "error",
+          title: "Erro!",
+          notification: "Quantidade total não pode ser negativa!",
+        });
+        return;
       }
-    } else {
-      confirmTitle = "Confirmar Compra";
-      confirmMessage = `Confirmar que ${totalQuantity} unidades foram compradas?\n\nEsta será a quantidade final após a conclusão da compra.`;
-    }
 
-    const result = await Swal.fire({
-      title: confirmTitle,
-      text: confirmMessage,
-      icon: "question",
-      showCancelButton: true,
-      confirmButtonText: "Sim, confirmar compra",
-      cancelButtonText: "Cancelar",
-      buttonsStyling: false,
-      customClass: {
-        confirmButton: "bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-semibold mx-2",
-        cancelButton: "bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded font-semibold mx-2",
-      },
-    });
+      // Validar: se escolheu atualizar quantidade pedida, o mínimo é 1
+      if (updateOrderedQuantity && totalQuantity < 1) {
+        setOpenNotification({
+          type: "error",
+          title: "Erro!",
+          notification: "A quantidade pedida não pode ser zero! O mínimo é 1 unidade.",
+        });
+        return;
+      }
 
-    if (!result.isConfirmed) {
-      return;
-    }
+      // SEMPRE mostrar confirmação final antes de concluir a compra
+      const difference = selectedItem.quantity - totalQuantity;
+      const originalOrderedQty = selectedItem.quantity;
+      let confirmMessage = "";
+      let confirmTitle = "";
 
-    try {
-      // Garantir que totalQuantity seja um número
-      const quantityToSend = Number(totalQuantity);
+      if (totalQuantity > selectedItem.quantity) {
+        // Comprou mais que pedido - sempre atualizar pedido
+        confirmTitle = "Confirmar Compra - Quantidade Maior que Pedida";
+        confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades (${
+          totalQuantity - originalOrderedQty
+        } a mais)\n\nO pedido será atualizado para ${totalQuantity} unidades para acompanhar a compra.\n\nPedido original era ${originalOrderedQty} unidades.`;
+      } else if (totalQuantity < selectedItem.quantity) {
+        // Comprou menos que pedido - perguntar se quer atualizar pedido ou manter pendente
+        if (updateOrderedQuantity) {
+          confirmTitle = "Confirmar Compra - Atualizar Quantidade Pedida";
+          confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades\n\nO pedido será atualizado de ${originalOrderedQty} para ${totalQuantity} unidades.\n\nPedido original era ${originalOrderedQty} unidades.`;
+        } else {
+          confirmTitle = "Confirmar Compra - Manter Pedido Original";
+          confirmMessage = `Pedido original: ${originalOrderedQty} unidades\nComprado: ${totalQuantity} unidades\n\nFicam ${difference} unidades pendentes.\n\nO pedido original de ${originalOrderedQty} unidades será mantido.`;
+        }
+      } else {
+        confirmTitle = "Confirmar Compra";
+        confirmMessage = `Confirmar que ${totalQuantity} unidades foram compradas?\n\nEsta será a quantidade final após a conclusão da compra.`;
+      }
+
+        const result = await Swal.fire({
+        title: confirmTitle,
+        text: confirmMessage,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "Sim, confirmar compra",
+        cancelButtonText: "Cancelar",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-semibold mx-2",
+          cancelButton: "bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded font-semibold mx-2",
+        },
+      });
+
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      try {
+        // Garantir que totalQuantity seja um número
+        const quantityToSend = Number(totalQuantity);
 
       if (isNaN(quantityToSend)) {
         setOpenNotification({
@@ -1749,7 +1757,9 @@ export function ShoppingListsTab() {
         title: "Erro!",
         notification: errorMessage,
       });
-    }
+    }, "savePurchasedQuantity").catch((error: any) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   const handleUndoPurchase = async (item: ShoppingListItem, listId?: string) => {
@@ -5143,14 +5153,14 @@ export function ShoppingListsTab() {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={() => handleSavePurchasedQuantity(false)}
-                disabled={toNumber(purchasedQuantity) + toNumber(additionalQuantity) === 0}
-                className={`px-4 py-2 rounded flex-1 ${
-                  toNumber(purchasedQuantity) + toNumber(additionalQuantity) === 0
+                disabled={toNumber(purchasedQuantity) + toNumber(additionalQuantity) === 0 || isActionLoading}
+                className={`px-4 py-2 rounded flex-1 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  toNumber(purchasedQuantity) + toNumber(additionalQuantity) === 0 || isActionLoading
                     ? "bg-gray-400 cursor-not-allowed text-white opacity-60"
                     : "bg-blue-600 hover:bg-blue-700 text-white"
                 }`}
               >
-                💾 Confirmar Compra
+                {isActionLoading ? "⏳ Processando..." : "💾 Confirmar Compra"}
               </button>
               <button
                 onClick={() => {

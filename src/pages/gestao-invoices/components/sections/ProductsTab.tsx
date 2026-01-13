@@ -3,6 +3,7 @@ import { Plus, Edit, Trash2, Boxes, Loader2 } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 export interface Product {
   id: string;
@@ -23,6 +24,7 @@ export function ProductsTab() {
   const [sortBy, setSortBy] = useState<"name" | "code">("name"); // Padrão: ordenação alfabética
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -92,6 +94,7 @@ export function ProductsTab() {
   };
 
   const handleDeleteMultiple = async () => {
+    if (isActionLoading) return;
     if (selectedProducts.length === 0) return;
 
     const result = await Swal.fire({
@@ -109,8 +112,7 @@ export function ProductsTab() {
     });
 
     if (result.isConfirmed) {
-      setIsSubmitting(true);
-      try {
+      await executeAction(async () => {
         await Promise.all(selectedProducts.map((id) => api.delete(`/invoice/product/${id}`)));
         await fetchData();
         setSelectedProducts([]);
@@ -119,7 +121,7 @@ export function ProductsTab() {
           title: "Sucesso!",
           notification: `${selectedProducts.length} produto(s) excluído(s) com sucesso!`,
         });
-      } catch (error) {
+      }, "deleteMultipleProducts").catch((error) => {
         console.error("Erro ao excluir produtos:", error);
         Swal.fire({
           icon: "error",
@@ -131,9 +133,7 @@ export function ProductsTab() {
             confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
           },
         });
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     }
   };
 
@@ -153,8 +153,7 @@ export function ProductsTab() {
     });
 
     if (result.isConfirmed) {
-      setIsSubmitting(true);
-      try {
+      await executeAction(async () => {
         await api.delete(`/invoice/product/${id}`);
         await fetchData();
         // Swal.fire({
@@ -172,7 +171,7 @@ export function ProductsTab() {
           title: "Sucesso!",
           notification: "Produto excluído permanentemente!",
         });
-      } catch (error) {
+      }, `deleteProduct-${id}`).catch((error) => {
         console.error("Erro ao excluir produto:", error);
         Swal.fire({
           icon: "error",
@@ -184,52 +183,51 @@ export function ProductsTab() {
             confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
           },
         });
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     }
   };
 
   const handleSave = async () => {
+    if (isActionLoading) return;
     if (!currentProduct) return;
 
-    const trimmedName = currentProduct.name.trim();
-    const trimmedCode = currentProduct.code.trim();
-    if (trimmedName === "" || trimmedCode === "") {
-      Swal.fire({
-        icon: "error",
-        title: "Erro",
-        text: "Nome e código do produto são obrigatórios.",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
+    await executeAction(async () => {
+      const trimmedName = currentProduct.name.trim();
+      const trimmedCode = currentProduct.code.trim();
+      if (trimmedName === "" || trimmedCode === "") {
+        Swal.fire({
+          icon: "error",
+          title: "Erro",
+          text: "Nome e código do produto são obrigatórios.",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
 
-    // Validar se já existe produto com o mesmo nome (case-insensitive) ou código
-    const existingProduct = products.find(
-      (p) =>
-        p.id !== currentProduct.id && // Não verificar o próprio produto se estiver editando
-        (p.name.toLowerCase() === trimmedName.toLowerCase() || p.code === trimmedCode)
-    );
+      // Validar se já existe produto com o mesmo nome (case-insensitive) ou código
+      const existingProduct = products.find(
+        (p) =>
+          p.id !== currentProduct.id && // Não verificar o próprio produto se estiver editando
+          (p.name.toLowerCase() === trimmedName.toLowerCase() || p.code === trimmedCode)
+      );
 
-    if (existingProduct) {
-      Swal.fire({
-        icon: "error",
-        title: "Produto duplicado!",
-        text: `Já existe um produto com o nome "${existingProduct.name}" ou código "${existingProduct.code}".`,
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
+      if (existingProduct) {
+        Swal.fire({
+          icon: "error",
+          title: "Produto duplicado!",
+          text: `Já existe um produto com o nome "${existingProduct.name}" ou código "${existingProduct.code}".`,
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
 
-    setIsSubmitting(true);
-    try {
+      try {
       if (currentProduct.id) {
         await api.patch(`/invoice/product/${currentProduct.id}`, currentProduct);
         // Swal.fire({
@@ -265,38 +263,39 @@ export function ProductsTab() {
           notification: "Produto criado com sucesso!",
         });
       }
-      await fetchData();
-      setShowModal(false);
-      setCurrentProduct(null);
-    } catch (error: any) {
-      console.error("Erro ao salvar produto:", error);
-      const errorMessage = error?.response?.data?.message || error?.message || "Não foi possível salvar o produto.";
+        await fetchData();
+        setShowModal(false);
+        setCurrentProduct(null);
+      } catch (error: any) {
+        console.error("Erro ao salvar produto:", error);
+        const errorMessage = error?.response?.data?.message || error?.message || "Não foi possível salvar o produto.";
 
-      // Se o erro for de produto duplicado, mostrar mensagem específica
-      if (error?.response?.status === 409 || errorMessage.includes("já existe")) {
-        Swal.fire({
-          icon: "error",
-          title: "Produto duplicado!",
-          text: errorMessage || "Já existe um produto com este nome ou código.",
-          buttonsStyling: false,
-          customClass: {
-            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-          },
-        });
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Erro!",
-          text: errorMessage,
-          buttonsStyling: false,
-          customClass: {
-            confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
-          },
-        });
+        // Se o erro for de produto duplicado, mostrar mensagem específica
+        if (error?.response?.status === 409 || errorMessage.includes("já existe")) {
+          Swal.fire({
+            icon: "error",
+            title: "Produto duplicado!",
+            text: errorMessage || "Já existe um produto com este nome ou código.",
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+            },
+          });
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "Erro!",
+            text: errorMessage,
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+            },
+          });
+        }
       }
-    } finally {
-      setIsSubmitting(false);
-    }
+    }, "saveProduct").catch((error: any) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   useEffect(() => {
@@ -324,7 +323,7 @@ export function ProductsTab() {
             <button
               onClick={handleDeleteMultiple}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center"
-              disabled={isSubmitting}
+              disabled={isActionLoading}
             >
               {isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -367,7 +366,7 @@ export function ProductsTab() {
               setShowModal(true);
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
-            disabled={isLoading || isSubmitting}
+            disabled={isLoading || isActionLoading}
           >
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
             Novo Produto
@@ -440,14 +439,14 @@ export function ProductsTab() {
                         <button
                           onClick={() => handleEdit(product)}
                           className="text-blue-600 hover:text-blue-900 mr-3"
-                          disabled={isSubmitting}
+                          disabled={isActionLoading}
                         >
                           <Edit size={16} />
                         </button>
                         <button
                           onClick={() => handleDelete(product.id)}
                           className="text-red-600 hover:text-red-900"
-                          disabled={isSubmitting}
+                          disabled={isActionLoading}
                         >
                           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 size={16} />}
                         </button>
@@ -487,7 +486,7 @@ export function ProductsTab() {
                     }, 0);
                   }}
                   className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isSubmitting}
+                  disabled={isActionLoading}
                 />
               </div>
               <div>
@@ -557,7 +556,7 @@ export function ProductsTab() {
                     }, 0);
                   }}
                   className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                  disabled={isSubmitting}
+                  disabled={isActionLoading}
                 ></textarea>
               </div>
             </div>
@@ -565,14 +564,14 @@ export function ProductsTab() {
               <button
                 onClick={() => setShowModal(false)}
                 className="px-4 py-2 border border-gray-300 rounded-md"
-                disabled={isSubmitting}
+                disabled={isActionLoading}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center"
-                disabled={isSubmitting}
+                disabled={isActionLoading}
               >
                 {isSubmitting ? (
                   <>
