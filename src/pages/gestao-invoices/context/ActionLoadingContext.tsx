@@ -21,17 +21,20 @@ export function ActionLoadingProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
+    // Marca como loading IMEDIATAMENTE antes de qualquer coisa
+    isLoadingRef.current = true;
+    setIsLoading(true);
+    if (actionName) {
+      setLoadingAction(actionName);
+    }
+
     try {
-      isLoadingRef.current = true;
-      setIsLoading(true);
-      if (actionName) {
-        setLoadingAction(actionName);
-      }
       const result = await action();
       return result;
     } catch (error) {
       throw error;
     } finally {
+      // Sempre libera o bloqueio, mesmo se houver return dentro da action
       isLoadingRef.current = false;
       setIsLoading(false);
       setLoadingAction(null);
