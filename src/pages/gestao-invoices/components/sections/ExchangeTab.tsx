@@ -6,6 +6,7 @@ import { InvoiceData } from "./InvoiceHistory";
 import { api } from "../../../../services/api";
 import Swal from "sweetalert2";
 import { useNotification } from "../../../../hooks/notification";
+import { useActionLoading } from "../../context/ActionLoadingContext";
 
 interface ExchangeTransaction {
   id: string;
@@ -58,6 +59,7 @@ export function ExchangeTab() {
     usd: 0,
   });
   const { setOpenNotification } = useNotification();
+  const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
   const [valueRaw3, setValorRaw3] = useState("");
   const [valueRaw4, setValorRaw4] = useState("");
@@ -438,9 +440,11 @@ export function ExchangeTab() {
   };
 
   const deleteSelectedTransactions = async () => {
+    if (isActionLoading) return;
     if (selectedTransactions.length === 0) return;
 
-    try {
+    await executeAction(async () => {
+      try {
       const result = await Swal.fire({
         title: "Confirmar Exclusão em Massa",
         text: `Tem certeza que deseja deletar ${selectedTransactions.length} transação(ões)? O saldo será recalculado automaticamente.`,
@@ -457,42 +461,44 @@ export function ExchangeTab() {
         },
       });
 
-      if (result.isConfirmed) {
-        setLoading(true);
+        if (result.isConfirmed) {
+          // Deletar todas as transações selecionadas
+          await Promise.all(selectedTransactions.map((id) => api.delete(`/invoice/exchange-records/${id}/recalculate`)));
 
-        // Deletar todas as transações selecionadas
-        await Promise.all(selectedTransactions.map((id) => api.delete(`/invoice/exchange-records/${id}/recalculate`)));
+          // Limpar seleção
+          setSelectedTransactions([]);
 
-        // Limpar seleção
-        setSelectedTransactions([]);
+          // Recarregar dados
+          await Promise.all([getBalance(), fetchData()]);
 
-        // Recarregar dados
-        await Promise.all([getBalance(), fetchData()]);
+          // Disparar evento customizado para atualizar outras abas
+          window.dispatchEvent(new CustomEvent("invoiceUpdated"));
 
-        // Disparar evento customizado para atualizar outras abas
-        window.dispatchEvent(new CustomEvent("invoiceUpdated"));
-
+          setOpenNotification({
+            type: "success",
+            title: "Sucesso!",
+            notification: `${selectedTransactions.length} transação(ões) deletada(s) e saldo recalculado!`,
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao deletar transações:", error);
         setOpenNotification({
-          type: "success",
-          title: "Sucesso!",
-          notification: `${selectedTransactions.length} transação(ões) deletada(s) e saldo recalculado!`,
+          type: "error",
+          title: "Erro!",
+          notification: "Erro ao deletar transações em massa",
         });
       }
-    } catch (error) {
-      console.error("Erro ao deletar transações:", error);
-      setOpenNotification({
-        type: "error",
-        title: "Erro!",
-        notification: "Erro ao deletar transações em massa",
-      });
-    } finally {
-      setLoading(false);
-    }
+    }, "deleteSelectedTransactions").catch((error) => {
+      console.error("Erro no executeAction:", error);
+    });
   };
 
   const deleteTransaction = async (transactionId: string) => {
-    try {
-      const result = await Swal.fire({
+    if (isActionLoading) return;
+    
+    await executeAction(async () => {
+      try {
+        const result = await Swal.fire({
         title: "Confirmar Exclusão",
         text: "Tem certeza que deseja deletar esta transação? O saldo será recalculado automaticamente.",
         icon: "warning",
@@ -508,38 +514,40 @@ export function ExchangeTab() {
         },
       });
 
-      if (result.isConfirmed) {
-        setLoading(true);
+          if (result.isConfirmed) {
+            // Chamar a API de deleção inteligente
+            await api.delete(`/invoice/exchange-records/${transactionId}/recalculate`);
 
-        // Chamar a API de deleção inteligente
-        await api.delete(`/invoice/exchange-records/${transactionId}/recalculate`);
+            // Recarregar dados
+            await Promise.all([getBalance(), fetchData()]);
 
-        // Recarregar dados
-        await Promise.all([getBalance(), fetchData()]);
+            // Disparar evento customizado para atualizar outras abas
+            window.dispatchEvent(new CustomEvent("invoiceUpdated"));
 
-        // Disparar evento customizado para atualizar outras abas
-        window.dispatchEvent(new CustomEvent("invoiceUpdated"));
-
-        setOpenNotification({
-          type: "success",
-          title: "Sucesso!",
-          notification: "Transação deletada e saldo recalculado com sucesso!",
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao deletar transação:", error);
-      setOpenNotification({
-        type: "error",
-        title: "Erro!",
-        notification: "Erro ao deletar transação",
+            setOpenNotification({
+              type: "success",
+              title: "Sucesso!",
+              notification: "Transação deletada e saldo recalculado com sucesso!",
+            });
+          }
+        } catch (error) {
+          console.error("Erro ao deletar transação:", error);
+          setOpenNotification({
+            type: "error",
+            title: "Erro!",
+            notification: "Erro ao deletar transação",
+          });
+        }
+      }, `deleteTransaction-${transactionId}`).catch((error) => {
+        console.error("Erro no executeAction:", error);
       });
-    } finally {
-      setLoading(false);
-    }
   };
 
   const reverseTransaction = async (transacao: FinancialTransaction) => {
-    try {
+    if (isActionLoading) return;
+    
+    await executeAction(async () => {
+      try {
       const isCarrierPayment = transacao.description.includes("PAGAMENTO CAIXA FRETEIRO");
       const carrierName = isCarrierPayment
         ? transacao.description.replace("PAGAMENTO CAIXA FRETEIRO - ", "").trim()
@@ -565,63 +573,62 @@ export function ExchangeTab() {
         },
       });
 
-      if (result.isConfirmed) {
-        setLoading(true);
+          if (result.isConfirmed) {
+            // Se for pagamento de freteiro, deletar também a transação do caixa
+            if (isCarrierPayment) {
+              try {
+                const carrier = carriers.find((c) => transacao.description.includes(c.name.toUpperCase()));
 
-        // Se for pagamento de freteiro, deletar também a transação do caixa
-        if (isCarrierPayment) {
-          try {
-            const carrier = carriers.find((c) => transacao.description.includes(c.name.toUpperCase()));
+                if (carrier) {
+                  const balanceRes = await api.get(`/invoice/box/transaction/${carrier.id}`);
+                  const transactions = balanceRes.data.TransactionBoxUserInvoice || [];
 
-            if (carrier) {
-              const balanceRes = await api.get(`/invoice/box/transaction/${carrier.id}`);
-              const transactions = balanceRes.data.TransactionBoxUserInvoice || [];
+                  // Encontrar a transação de pagamento correspondente
+                  const boxTransaction = transactions.find(
+                    (t: any) =>
+                      t.description === transacao.description &&
+                      t.direction === "IN" &&
+                      Math.abs(t.value - transacao.usd) < 0.01
+                  );
 
-              // Encontrar a transação de pagamento correspondente
-              const boxTransaction = transactions.find(
-                (t: any) =>
-                  t.description === transacao.description &&
-                  t.direction === "IN" &&
-                  Math.abs(t.value - transacao.usd) < 0.01
-              );
-
-              if (boxTransaction) {
-                // Deletar transação do caixa
-                await api.delete(`/invoice/box/trasnsaction/user/${boxTransaction.id}`);
+                  if (boxTransaction) {
+                    // Deletar transação do caixa
+                    await api.delete(`/invoice/box/trasnsaction/user/${boxTransaction.id}`);
+                  }
+                }
+              } catch (error) {
+                console.error("Erro ao deletar transação do caixa:", error);
               }
             }
-          } catch (error) {
-            console.error("Erro ao deletar transação do caixa:", error);
+
+            // Deletar registro de exchange e recalcular
+            await api.delete(`/invoice/exchange-records/${transacao.id}/recalculate`);
+
+            // Recarregar dados
+            await Promise.all([getBalance(), fetchData()]);
+
+            // Disparar evento customizado para atualizar outras abas
+            window.dispatchEvent(new CustomEvent("invoiceUpdated"));
+
+            setOpenNotification({
+              type: "success",
+              title: "Sucesso!",
+              notification: isCarrierPayment
+                ? "Pagamento estornado e dívida revertida com sucesso!"
+                : "Transação estornada e saldo recalculado com sucesso!",
+            });
           }
+        } catch (error) {
+          console.error("Erro ao estornar transação:", error);
+          setOpenNotification({
+            type: "error",
+            title: "Erro!",
+            notification: "Erro ao estornar transação",
+          });
         }
-
-        // Deletar registro de exchange e recalcular
-        await api.delete(`/invoice/exchange-records/${transacao.id}/recalculate`);
-
-        // Recarregar dados
-        await Promise.all([getBalance(), fetchData()]);
-
-        // Disparar evento customizado para atualizar outras abas
-        window.dispatchEvent(new CustomEvent("invoiceUpdated"));
-
-        setOpenNotification({
-          type: "success",
-          title: "Sucesso!",
-          notification: isCarrierPayment
-            ? "Pagamento estornado e dívida revertida com sucesso!"
-            : "Transação estornada e saldo recalculado com sucesso!",
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao estornar transação:", error);
-      setOpenNotification({
-        type: "error",
-        title: "Erro!",
-        notification: "Erro ao estornar transação",
+      }, `reverseTransaction-${transacao.id}`).catch((error) => {
+        console.error("Erro no executeAction:", error);
       });
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (

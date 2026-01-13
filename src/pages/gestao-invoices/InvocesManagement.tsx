@@ -15,6 +15,7 @@ import { LostProductsTab } from "./components/sections/LostProductsTab";
 import { usePermissionStore } from "../../store/permissionsStore";
 import { api } from "../../services/api";
 import { ActionLoadingProvider } from "./context/ActionLoadingContext";
+import { DisableButtonsWrapper } from "./components/DisableButtonsWrapper";
 
 export type TabType =
   | "invoices"
@@ -120,32 +121,34 @@ export default function InvocesManagement() {
 
   return (
     <ActionLoadingProvider>
-      <div className="bg-gray-50 min-h-screen">
-        <div className="container mx-auto px-4 py-8">
-          <header className="mb-8">
-            <h1 className="text-3xl font-bold text-blue-800">Sistema de Gestão de Invoices</h1>
-            <p className="text-gray-600">Controle completo de produtos, invoices e fornecedores</p>
-          </header>
+      <DisableButtonsWrapper>
+        <div className="bg-gray-50 min-h-screen">
+          <div className="container mx-auto px-4 py-8">
+            <header className="mb-8">
+              <h1 className="text-3xl font-bold text-blue-800">Sistema de Gestão de Invoices</h1>
+              <p className="text-gray-600">Controle completo de produtos, invoices e fornecedores</p>
+            </header>
 
-          <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
+            <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
-          <div className="mt-6">
-            {activeTab === "invoices" && canShowTab("INVOICES") && (
-              <InvoicesTab currentInvoice={currentInvoice} setCurrentInvoice={setCurrentInvoice} />
-            )}
-            {activeTab === "products" && canShowTab("PRODUTOS") && <ProductsTab />}
-            {activeTab === "suppliers" && canShowTab("FORNECEDORES") && <SuppliersTab />}
-            {activeTab === "carriers" && canShowTab("FRETEIROS") && <CarriersTab />}
-            {activeTab === "others" && canShowTab("OUTROS") && <OtherPartnersTab />}
-            {activeTab === "media-dolar" && canShowTab("MEDIA_DOLAR") && <ExchangeTab />}
-            {activeTab === "relatorios" && canShowTab("RELATORIOS") && <ReportsTab />}
-            {activeTab === "caixas" && canShowTab("CAIXAS_PERMITIDOS") && <CaixasTab />}
-            {activeTab === "caixas-brl" && canShowTab("CAIXAS_BR_PERMITIDOS") && <CaixasTabBrl />}
-            {activeTab === "shopping-lists" && <ShoppingListsTab />}
-            {activeTab === "lost-products" && canShowTab("RELATORIOS") && <LostProductsTab />}
+            <div className="mt-6">
+              {activeTab === "invoices" && canShowTab("INVOICES") && (
+                <InvoicesTab currentInvoice={currentInvoice} setCurrentInvoice={setCurrentInvoice} />
+              )}
+              {activeTab === "products" && canShowTab("PRODUTOS") && <ProductsTab />}
+              {activeTab === "suppliers" && canShowTab("FORNECEDORES") && <SuppliersTab />}
+              {activeTab === "carriers" && canShowTab("FRETEIROS") && <CarriersTab />}
+              {activeTab === "others" && canShowTab("OUTROS") && <OtherPartnersTab />}
+              {activeTab === "media-dolar" && canShowTab("MEDIA_DOLAR") && <ExchangeTab />}
+              {activeTab === "relatorios" && canShowTab("RELATORIOS") && <ReportsTab />}
+              {activeTab === "caixas" && canShowTab("CAIXAS_PERMITIDOS") && <CaixasTab />}
+              {activeTab === "caixas-brl" && canShowTab("CAIXAS_BR_PERMITIDOS") && <CaixasTabBrl />}
+              {activeTab === "shopping-lists" && <ShoppingListsTab />}
+              {activeTab === "lost-products" && canShowTab("RELATORIOS") && <LostProductsTab />}
+            </div>
           </div>
         </div>
-      </div>
+      </DisableButtonsWrapper>
     </ActionLoadingProvider>
   );
 }
