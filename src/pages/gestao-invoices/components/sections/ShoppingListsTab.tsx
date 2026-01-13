@@ -1757,8 +1757,14 @@ export function ShoppingListsTab() {
         title: "Erro!",
         notification: errorMessage,
       });
+      }
     }, "savePurchasedQuantity").catch((error: any) => {
       console.error("Erro no executeAction:", error);
+      setOpenNotification({
+        type: "error",
+        title: "Erro!",
+        notification: "Erro ao executar ação. Por favor, tente novamente.",
+      });
     });
   };
 
