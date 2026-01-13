@@ -12,9 +12,17 @@ export function DisableButtonsWrapper({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     const disableAllButtons = () => {
-      const buttons = document.querySelectorAll("button:not([data-allow-click])");
+      // Não desabilitar botões dentro de modais do SweetAlert2 ou outros modais de confirmação
+      const buttons = document.querySelectorAll(
+        "button:not([data-allow-click]):not(.swal2-confirm):not(.swal2-cancel)"
+      );
       buttons.forEach((btn) => {
         const htmlBtn = btn as HTMLButtonElement;
+        // Verificar se o botão está dentro de um modal do SweetAlert2
+        const isInSwalModal = htmlBtn.closest(".swal2-popup") !== null;
+        if (isInSwalModal) {
+          return; // Ignorar botões dentro de modais do SweetAlert2
+        }
         if (!htmlBtn.disabled && !htmlBtn.hasAttribute("data-action-disabled")) {
           htmlBtn.disabled = true;
           htmlBtn.setAttribute("data-action-disabled", "true");
@@ -65,4 +73,3 @@ export function DisableButtonsWrapper({ children }: { children: React.ReactNode 
 
   return <>{children}</>;
 }
-
