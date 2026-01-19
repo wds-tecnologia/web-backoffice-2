@@ -99,10 +99,11 @@ export function LostProductsTab() {
         api.get("/invoice/product", { params: { limit: 1000 } }),
         api.get("/invoice/carriers"),
       ]);
-      setInvoices(invoiceResponse.data || []);
+      const invoicesData = Array.isArray(invoiceResponse.data) ? invoiceResponse.data : [];
+      setInvoices(invoicesData);
       const productsData = Array.isArray(productsResponse.data)
         ? productsResponse.data
-        : productsResponse.data.products || [];
+        : productsResponse.data?.products || [];
       setProducts(productsData.filter((p: any) => p.active !== false));
       setCarriers(carriersResponse.data || []);
     } catch (error) {
@@ -114,7 +115,8 @@ export function LostProductsTab() {
     setIsLoading(true);
     try {
       const response = await api.get("/invoice/lost-products");
-      setLostProducts(response.data.lostProducts || []);
+      const products = response.data.lostProducts || response.data || [];
+      setLostProducts(products);
     } catch (error) {
       console.error("Erro ao buscar produtos perdidos:", error);
       setOpenNotification({
@@ -523,9 +525,6 @@ export function LostProductsTab() {
                               Invoice
                             </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                              Fornecedor
-                            </th>
-                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                               Quantidade
                             </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -537,33 +536,50 @@ export function LostProductsTab() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {dateProducts.map((product) => (
-                            <tr key={product.id} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
-                                {product.invoiceProduct?.product?.name || "Produto não encontrado"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                {product.invoiceProduct?.invoice?.number || "—"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                {product.invoiceProduct?.invoice?.supplier?.name || "—"}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
-                                {product.quantity}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">
-                                {formatCurrency(product.invoiceProduct?.value || 0)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-center">
-                                {formatCurrency(product.refundValue)}
-                              </td>
-                            </tr>
-                          ))}
+                          {dateProducts.map((product) => {
+                            // Calcular valor individual baseado no refundValue e quantidade como fallback
+                            const individualValue = product.quantity > 0 ? product.refundValue / product.quantity : 0;
+                            // Usar o valor do invoiceProduct se disponível, senão usar o calculado
+                            const displayIndividualValue = product.invoiceProduct?.value && product.invoiceProduct.value > 0 
+                              ? product.invoiceProduct.value 
+                              : individualValue;
+                            
+                            // Tentar obter nome do produto de várias formas
+                            const productName = product.invoiceProduct?.product?.name 
+                              || products.find(p => p.id === product.invoiceProduct?.productId)?.name
+                              || product.invoiceProduct?.productId 
+                              || "Produto não encontrado";
+                            
+                            // Tentar obter número da invoice de várias formas
+                            const invoiceNumber = product.invoiceProduct?.invoice?.number 
+                              || invoices.find(inv => inv.id === product.invoiceProduct?.invoiceId)?.number
+                              || product.invoiceProduct?.invoiceId 
+                              || "—";
+                            
+                            return (
+                              <tr key={product.id} className="hover:bg-gray-50">
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-center">
+                                  {productName}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                  {invoiceNumber}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">
+                                  {product.quantity}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-center">
+                                  {formatCurrency(displayIndividualValue)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 text-center">
+                                  {formatCurrency(product.refundValue)}
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="bg-blue-100 font-semibold">
                             <td className="px-6 py-3 text-sm text-gray-800 text-center">Subtotal</td>
-                            <td className="px-6 py-3 text-sm text-gray-800 text-center">—</td>
                             <td className="px-6 py-3 text-sm text-gray-800 text-center">—</td>
                             <td className="px-6 py-3 text-sm text-gray-800 text-center">
                               {dateProducts.reduce((sum, p) => sum + p.quantity, 0)}
