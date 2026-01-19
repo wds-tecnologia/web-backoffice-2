@@ -630,18 +630,18 @@ export function LostProductsTab() {
                             
                             if (product.invoiceProduct?.invoice?.number) {
                               invoiceNumber = product.invoiceProduct.invoice.number;
-                            } else if (product.invoiceProduct?.invoiceId) {
-                              const foundInvoice = invoices.find(inv => inv.id === product.invoiceProduct.invoiceId);
+                            } else if (product.invoiceProduct?.invoice?.id) {
+                              const foundInvoice = invoices.find(inv => inv.id === product.invoiceProduct.invoice.id);
                               if (foundInvoice?.number) {
                                 invoiceNumber = foundInvoice.number;
                               } else {
                                 console.warn("⚠️ Invoice não encontrada no array invoices:", {
-                                  invoiceId: product.invoiceProduct.invoiceId,
+                                  invoiceId: product.invoiceProduct.invoice.id,
                                   totalInvoices: invoices.length,
                                 });
                               }
                             } else if (product.invoiceProductId) {
-                              // Tentar buscar invoice pelo invoiceProductId (pode ter relação)
+                              // Último recurso: tentar buscar pelo invoiceProductId
                               console.warn("⚠️ Tentando buscar invoice pelo invoiceProductId:", product.invoiceProductId);
                             }
                             
