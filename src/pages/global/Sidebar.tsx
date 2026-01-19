@@ -74,15 +74,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
 
     const handleClick = () => {
       setSelected(title);
-
-      if (requiresValidation) {
-        // Se requer validação, armazena a rota pendente e abre o modal
-        setPendingNavigation(to);
-        setOpenModal(true);
-      } else {
-        // Se não requer validação, navega diretamente
-        navigate(to);
-      }
+      // SEMPRE navega diretamente, ignorando a validação
+      navigate(to);
     };
 
     return (
@@ -740,14 +733,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
               </Box>
             )}
 
-            {/* Enhanced Modal Component */}
-            <EnhancedModal
+            {/* Enhanced Modal Component - DESABILITADO */}
+            {/* <EnhancedModal
               open={openModal}
               onClose={handleCloseModal}
               onSave={handleSaveSpreadsheetModal}
               title="Digite a senha de acesso"
               label="Code"
-            />
+            /> */}
             
             {/* Modal de Lista de Snapshots */}
             <Dialog

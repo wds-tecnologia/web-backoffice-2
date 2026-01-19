@@ -195,8 +195,7 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           {canShowTab("GERENCIAR_PLANILHAS") && (
             <MenuItem
               onClick={() => {
-                setPendingNavigation("/spreadsheets");
-                setOpenModal(true);
+                navigate("/spreadsheets");
                 handleMenuClose();
               }}
               sx={{ color: colors.grey[100] }}
@@ -209,10 +208,6 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           {canShowTab("GERENCIAR_INVOICES") && (
             <MenuItem
               onClick={() => {
-                // TEMPORÁRIO: Comentado para não pedir senha ao acessar
-                // setPendingNavigation("/invoices-management");
-                // setOpenModal(true);
-                // handleMenuClose();
                 navigate("/invoices-management");
                 handleMenuClose();
               }}
@@ -226,8 +221,7 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           {canShowTab("GERENCIAR_TOKENS") && (
             <MenuItem
               onClick={() => {
-                setPendingNavigation("/tokens-management");
-                setOpenModal(true);
+                navigate("/tokens-management");
                 handleMenuClose();
               }}
               sx={{ color: colors.grey[100] }}
@@ -240,8 +234,7 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           {canShowTab("GERENCIAR_BOLETOS") && (
             <MenuItem
               onClick={() => {
-                setPendingNavigation("/billets-management");
-                setOpenModal(true);
+                navigate("/billets-management");
                 handleMenuClose();
               }}
               sx={{ color: colors.grey[100] }}
@@ -252,14 +245,14 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           )}
         </Menu>
 
-        {/* Enhanced Modal Component */}
-        <EnhancedModal
+        {/* Enhanced Modal Component - DESABILITADO */}
+        {/* <EnhancedModal
           open={openModal}
           onClose={handleCloseModal}
           onSave={handleSaveSpreadsheetModal}
           title="Digite a senha de acesso"
           label="Code"
-        />
+        /> */}
 
         {/* Error Toast */}
         <Snackbar
