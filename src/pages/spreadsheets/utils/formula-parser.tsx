@@ -323,7 +323,7 @@ export class FormulaParser {
               .replace(",", ".")
           }
   
-          return Number.parseFloat(val) || 0
+          return String(Number.parseFloat(val) || 0)
         })
   
         // Use Function instead of eval for better security
