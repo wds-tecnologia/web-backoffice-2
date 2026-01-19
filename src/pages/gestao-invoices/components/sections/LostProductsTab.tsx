@@ -551,9 +551,10 @@ export function LostProductsTab() {
                               || "Produto não encontrado";
                             
                             // Tentar obter número da invoice de várias formas
+                            const invoiceId = product.invoiceProduct?.invoice?.id;
                             const invoiceNumber = product.invoiceProduct?.invoice?.number 
-                              || (product.invoiceProduct?.invoiceId ? invoices.find(inv => inv.id === product.invoiceProduct.invoiceId)?.number : null)
-                              || (product.invoiceProduct?.invoiceId ? String(product.invoiceProduct.invoiceId) : null)
+                              || (invoiceId ? invoices.find(inv => inv.id === invoiceId)?.number : null)
+                              || (invoiceId ? String(invoiceId) : null)
                               || "—";
                             
                             return (
