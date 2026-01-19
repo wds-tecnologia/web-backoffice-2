@@ -654,7 +654,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
                 icon={<DescriptionOutlinedIcon />}
                 selected={selected}
                 setSelected={setSelected}
-                requiresValidation={true}
+               // requiresValidation={true}
               />
             )}
             {canShowTab("GERENCIAR_TOKENS") && (
