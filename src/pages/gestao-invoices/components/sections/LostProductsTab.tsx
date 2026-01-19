@@ -546,14 +546,14 @@ export function LostProductsTab() {
                             
                             // Tentar obter nome do produto de várias formas
                             const productName = product.invoiceProduct?.product?.name 
-                              || products.find(p => p.id === product.invoiceProduct?.productId)?.name
-                              || product.invoiceProduct?.productId 
+                              || (product.invoiceProduct?.productId ? products.find(p => p.id === product.invoiceProduct.productId)?.name : null)
+                              || (product.invoiceProduct?.productId ? String(product.invoiceProduct.productId) : null)
                               || "Produto não encontrado";
                             
                             // Tentar obter número da invoice de várias formas
                             const invoiceNumber = product.invoiceProduct?.invoice?.number 
-                              || invoices.find(inv => inv.id === product.invoiceProduct?.invoiceId)?.number
-                              || product.invoiceProduct?.invoiceId 
+                              || (product.invoiceProduct?.invoiceId ? invoices.find(inv => inv.id === product.invoiceProduct.invoiceId)?.number : null)
+                              || (product.invoiceProduct?.invoiceId ? String(product.invoiceProduct.invoiceId) : null)
                               || "—";
                             
                             return (
