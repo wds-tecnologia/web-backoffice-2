@@ -245,14 +245,14 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           )}
         </Menu>
 
-        {/* Enhanced Modal Component */}
-        <EnhancedModal
+        {/* Enhanced Modal Component - DESABILITADO */}
+        {/* <EnhancedModal
           open={openModal}
           onClose={handleCloseModal}
           onSave={handleSaveSpreadsheetModal}
           title="Digite a senha de acesso"
           label="Code"
-        />
+        /> */}
 
         {/* Error Toast */}
         <Snackbar

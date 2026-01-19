@@ -733,14 +733,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
               </Box>
             )}
 
-            {/* Enhanced Modal Component */}
-            <EnhancedModal
+            {/* Enhanced Modal Component - DESABILITADO */}
+            {/* <EnhancedModal
               open={openModal}
               onClose={handleCloseModal}
               onSave={handleSaveSpreadsheetModal}
               title="Digite a senha de acesso"
               label="Code"
-            />
+            /> */}
             
             {/* Modal de Lista de Snapshots */}
             <Dialog
