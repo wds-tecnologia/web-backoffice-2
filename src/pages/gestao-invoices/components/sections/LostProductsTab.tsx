@@ -101,10 +101,22 @@ export function LostProductsTab() {
       ]);
       const invoicesData = Array.isArray(invoiceResponse.data) ? invoiceResponse.data : [];
       setInvoices(invoicesData);
+      console.log("📋 Invoices carregadas:", invoicesData.length);
+      
       const productsData = Array.isArray(productsResponse.data)
         ? productsResponse.data
         : productsResponse.data?.products || [];
-      setProducts(productsData.filter((p: any) => p.active !== false));
+      const activeProducts = productsData.filter((p: any) => p.active !== false);
+      setProducts(activeProducts);
+      console.log("📦 Produtos carregados:", activeProducts.length);
+      if (activeProducts.length > 0) {
+        console.log("📦 Primeiro produto exemplo:", {
+          id: activeProducts[0].id,
+          name: activeProducts[0].name,
+          code: activeProducts[0].code,
+        });
+      }
+      
       setCarriers(carriersResponse.data || []);
     } catch (error) {
       console.error("Erro ao buscar invoices e produtos:", error);
@@ -116,6 +128,21 @@ export function LostProductsTab() {
     try {
       const response = await api.get("/invoice/lost-products");
       const products = response.data.lostProducts || response.data || [];
+      
+      // Log para debug
+      console.log("📦 Produtos perdidos recebidos:", products.length);
+      if (products.length > 0) {
+        const firstProduct = products[0];
+        console.log("📦 Primeiro produto perdido (completo):", JSON.stringify(firstProduct, null, 2));
+        console.log("📦 Tem invoiceProduct?", !!firstProduct.invoiceProduct);
+        if (firstProduct.invoiceProduct) {
+          console.log("📦 invoiceProduct tem product?", !!firstProduct.invoiceProduct.product);
+          console.log("📦 invoiceProduct tem invoice?", !!firstProduct.invoiceProduct.invoice);
+        } else {
+          console.warn("⚠️ Primeiro produto NÃO tem invoiceProduct!");
+        }
+      }
+      
       setLostProducts(products);
     } catch (error) {
       console.error("Erro ao buscar produtos perdidos:", error);
@@ -537,6 +564,16 @@ export function LostProductsTab() {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {dateProducts.map((product) => {
+                            // Debug: log do produto completo
+                            if (!product.invoiceProduct) {
+                              console.warn("⚠️ Produto perdido sem invoiceProduct:", {
+                                lostProductId: product.id,
+                                invoiceProductId: product.invoiceProductId,
+                                totalProducts: products.length,
+                                totalInvoices: invoices.length,
+                              });
+                            }
+                            
                             // Calcular valor individual baseado no refundValue e quantidade como fallback
                             const individualValue = product.quantity > 0 ? product.refundValue / product.quantity : 0;
                             // Usar o valor do invoiceProduct se disponível, senão usar o calculado
@@ -545,17 +582,50 @@ export function LostProductsTab() {
                               : individualValue;
                             
                             // Tentar obter nome do produto de várias formas
-                            const productName = product.invoiceProduct?.product?.name 
-                              || (product.invoiceProduct?.productId ? products.find(p => p.id === product.invoiceProduct.productId)?.name : null)
-                              || (product.invoiceProduct?.productId ? String(product.invoiceProduct.productId) : null)
-                              || "Produto não encontrado";
+                            // 1. Direto do invoiceProduct.product.name
+                            // 2. Buscar no array products usando invoiceProduct.productId
+                            // 3. Buscar no array products usando invoiceProductId (pode ser que o invoiceProduct tenha o productId)
+                            // 4. Usar o invoiceProductId como fallback
+                            let productName = "Produto não encontrado";
+                            
+                            if (product.invoiceProduct?.product?.name) {
+                              productName = product.invoiceProduct.product.name;
+                            } else if (product.invoiceProduct?.productId) {
+                              const foundProduct = products.find(p => p.id === product.invoiceProduct.productId);
+                              if (foundProduct?.name) {
+                                productName = foundProduct.name;
+                              } else {
+                                console.warn("⚠️ Produto não encontrado no array products:", {
+                                  productId: product.invoiceProduct.productId,
+                                  totalProducts: products.length,
+                                  firstProductId: products[0]?.id,
+                                });
+                                productName = product.invoiceProduct.productId;
+                              }
+                            } else if (product.invoiceProductId) {
+                              // Último recurso: tentar buscar pelo invoiceProductId
+                              console.warn("⚠️ Tentando buscar produto pelo invoiceProductId:", product.invoiceProductId);
+                            }
                             
                             // Tentar obter número da invoice de várias formas
-                            const invoiceId = product.invoiceProduct?.invoice?.id;
-                            const invoiceNumber = product.invoiceProduct?.invoice?.number 
-                              || (invoiceId ? invoices.find(inv => inv.id === invoiceId)?.number : null)
-                              || (invoiceId ? String(invoiceId) : null)
-                              || "—";
+                            let invoiceNumber = "—";
+                            
+                            if (product.invoiceProduct?.invoice?.number) {
+                              invoiceNumber = product.invoiceProduct.invoice.number;
+                            } else if (product.invoiceProduct?.invoiceId) {
+                              const foundInvoice = invoices.find(inv => inv.id === product.invoiceProduct.invoiceId);
+                              if (foundInvoice?.number) {
+                                invoiceNumber = foundInvoice.number;
+                              } else {
+                                console.warn("⚠️ Invoice não encontrada no array invoices:", {
+                                  invoiceId: product.invoiceProduct.invoiceId,
+                                  totalInvoices: invoices.length,
+                                });
+                              }
+                            } else if (product.invoiceProductId) {
+                              // Tentar buscar invoice pelo invoiceProductId (pode ter relação)
+                              console.warn("⚠️ Tentando buscar invoice pelo invoiceProductId:", product.invoiceProductId);
+                            }
                             
                             return (
                               <tr key={product.id} className="hover:bg-gray-50">
