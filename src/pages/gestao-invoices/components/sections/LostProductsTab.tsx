@@ -563,7 +563,25 @@ export function LostProductsTab() {
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                          {dateProducts.map((product) => {
+                          {dateProducts.map((product, index) => {
+                            // Debug: log COMPLETO do produto
+                            if (index === 0) {
+                              console.log("🔍 PRODUTO PERDIDO COMPLETO:", {
+                                id: product.id,
+                                invoiceProductId: product.invoiceProductId,
+                                quantity: product.quantity,
+                                refundValue: product.refundValue,
+                                invoiceProduct: product.invoiceProduct,
+                                todasPropriedades: Object.keys(product),
+                              });
+                              console.log("🔍 ARRAYS DISPONÍVEIS:", {
+                                totalProducts: products.length,
+                                totalInvoices: invoices.length,
+                                primeiroProduct: products[0],
+                                primeiraInvoice: invoices[0],
+                              });
+                            }
+                            
                             // Debug: log do produto completo
                             if (!product.invoiceProduct) {
                               console.warn("⚠️ Produto perdido sem invoiceProduct:", {
