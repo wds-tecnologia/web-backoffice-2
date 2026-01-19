@@ -566,14 +566,11 @@ export function LostProductsTab() {
                           {dateProducts.map((product, index) => {
                             // Debug: log COMPLETO do produto
                             if (index === 0) {
-                              console.log("🔍 PRODUTO PERDIDO COMPLETO:", {
-                                id: product.id,
-                                invoiceProductId: product.invoiceProductId,
-                                quantity: product.quantity,
-                                refundValue: product.refundValue,
-                                invoiceProduct: product.invoiceProduct,
-                                todasPropriedades: Object.keys(product),
-                              });
+                              console.log("🔍 PRODUTO PERDIDO COMPLETO:", product);
+                              console.log("🔍 Tem product direto?", !!product.product);
+                              console.log("🔍 Tem invoice direto?", !!product.invoice);
+                              console.log("🔍 Nome do produto:", product.product?.name || "NÃO TEM");
+                              console.log("🔍 Número da invoice:", product.invoice?.number || "NÃO TEM");
                               console.log("🔍 ARRAYS DISPONÍVEIS:", {
                                 totalProducts: products.length,
                                 totalInvoices: invoices.length,
