@@ -65,7 +65,8 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "patch-package"
   },
   "eslintConfig": {
     "extends": [
@@ -90,5 +91,11 @@
     "@types/react-dom": "^19.0.2",
     "@types/react-router-dom": "^5.3.3",
     "typescript": "^5.7.3"
+  },
+  "resolutions": {
+    "fork-ts-checker-webpack-plugin": "^7.3.0"
+  },
+  "overrides": {
+    "fork-ts-checker-webpack-plugin": "^7.3.0"
   }
 }
