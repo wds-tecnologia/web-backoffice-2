@@ -1,4 +1,4 @@
-import { JSX, useEffect } from "react";
+import { JSX } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 
 interface GuardedRouteProps {
