@@ -81,7 +81,7 @@ export class FormulaParser {
         this.cache.set(cacheKey, result)
         return result
       } catch (err) {
-        console.error("Erro na fórmula:", err.message)
+        console.error("Erro na fórmula:", err instanceof Error ? err.message : String(err))
         throw err
       } finally {
         // Remove from processing stack after calculation

@@ -1,51 +1,61 @@
 diff --git a/node_modules/fork-ts-checker-webpack-plugin/lib/typescript-reporter/profile/TypeScriptPerformance.js b/node_modules/fork-ts-checker-webpack-plugin/lib/typescript-reporter/profile/TypeScriptPerformance.js
-index 5d94098..ce1f408 100644
+index 5d94098..3ed00bb 100644
 --- a/node_modules/fork-ts-checker-webpack-plugin/lib/typescript-reporter/profile/TypeScriptPerformance.js
 +++ b/node_modules/fork-ts-checker-webpack-plugin/lib/typescript-reporter/profile/TypeScriptPerformance.js
-@@ -9,21 +9,37 @@ function connectTypeScriptPerformance(typescript, performance) {
+@@ -9,21 +9,48 @@ function connectTypeScriptPerformance(typescript, performance) {
      if (typeScriptPerformance) {
          const { mark, measure } = typeScriptPerformance;
          const { enable, disable } = performance;
 -        typeScriptPerformance.mark = (name) => {
 -            mark(name);
--            performance.mark(name);
++        // Não tentar sobrescrever propriedades somente leitura do TypeScript 5.x
++        // Em vez disso, criar wrappers que chamam ambas as funções
++        const wrappedMark = mark ? (name) => {
++            try {
++                mark.call(typeScriptPerformance, name);
++            } catch (e) {
++                // Ignore if mark fails
++            }
+             performance.mark(name);
 -        };
 -        typeScriptPerformance.measure = (name, startMark, endMark) => {
 -            measure(name, startMark, endMark);
--            performance.measure(name, startMark, endMark);
++        } : performance.mark;
++        
++        const wrappedMeasure = measure ? (name, startMark, endMark) => {
++            try {
++                measure.call(typeScriptPerformance, name, startMark, endMark);
++            } catch (e) {
++                // Ignore if measure fails
++            }
+             performance.measure(name, startMark, endMark);
 -        };
-+        try {
-+            if (mark) {
-+                typeScriptPerformance.mark = (name) => {
-+                    mark(name);
-+                    performance.mark(name);
-+                };
-+            }
-+        } catch (e) {
-+            // Ignore if mark is read-only
-+        }
-+        try {
-+            if (measure) {
-+                typeScriptPerformance.measure = (name, startMark, endMark) => {
-+                    measure(name, startMark, endMark);
-+                    performance.measure(name, startMark, endMark);
-+                };
-+            }
-+        } catch (e) {
-+            // Ignore if measure is read-only
-+        }
-         return Object.assign(Object.assign({}, performance), { enable() {
+-        return Object.assign(Object.assign({}, performance), { enable() {
++        } : performance.measure;
++        
++        return Object.assign(Object.assign({}, performance), { 
++            mark: wrappedMark,
++            measure: wrappedMeasure,
++            enable() {
                  enable();
 -                typeScriptPerformance.enable();
-+                if (typeScriptPerformance.enable) {
-+                    typeScriptPerformance.enable();
++                try {
++                    if (typeScriptPerformance.enable) {
++                        typeScriptPerformance.enable();
++                    }
++                } catch (e) {
++                    // Ignore if enable fails
 +                }
              },
              disable() {
                  disable();
 -                typeScriptPerformance.disable();
-+                if (typeScriptPerformance.disable) {
-+                    typeScriptPerformance.disable();
++                try {
++                    if (typeScriptPerformance.disable) {
++                        typeScriptPerformance.disable();
++                    }
++                } catch (e) {
++                    // Ignore if disable fails
 +                }
              } });
      }
