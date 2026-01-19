@@ -209,8 +209,11 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
           {canShowTab("GERENCIAR_INVOICES") && (
             <MenuItem
               onClick={() => {
-                setPendingNavigation("/invoices-management");
-                setOpenModal(true);
+                // TEMPORÁRIO: Comentado para não pedir senha ao acessar
+                // setPendingNavigation("/invoices-management");
+                // setOpenModal(true);
+                // handleMenuClose();
+                navigate("/invoices-management");
                 handleMenuClose();
               }}
               sx={{ color: colors.grey[100] }}
