@@ -20,6 +20,7 @@ export function CarriersTab() {
   const [currentCarrier, setCurrentCarrier] = useState<Carrier | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [valueInput, setValueInput] = useState<string>(""); // Para manter o valor digitado
   const { setOpenNotification } = useNotification();
   const { isLoading: isActionLoading, executeAction } = useActionLoading();
 
@@ -55,6 +56,7 @@ export function CarriersTab() {
 
   const handleEdit = (carrier: Carrier) => {
     setCurrentCarrier(carrier);
+    setValueInput(carrier.value > 0 ? String(carrier.value) : ""); // Inicializar o input
     setShowModal(true);
   };
 
@@ -182,6 +184,7 @@ export function CarriersTab() {
         <button
           onClick={() => {
             setCurrentCarrier({ id: "", name: "", type: "percentage", value: 0 });
+            setValueInput(""); // Limpar o input
             setShowModal(true);
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
@@ -304,14 +307,29 @@ export function CarriersTab() {
                     type="text"
                     inputMode="decimal"
                     placeholder="0.00"
-                    value={currentCarrier.value === 0 ? "" : String(currentCarrier.value)}
+                    value={valueInput}
                     onChange={(e) => {
-                      const value = e.target.value.replace(",", ".");
+                      let value = e.target.value;
+                      
+                      // Permitir vírgula e converter para ponto
+                      value = value.replace(",", ".");
+                      
+                      // Validar formato: apenas números, um ponto e até 2 decimais
                       if (/^\d*\.?\d{0,2}$/.test(value) || value === "") {
+                        setValueInput(value); // Mantém o que o usuário digitou (incluindo "5." ou "5.5")
                         setCurrentCarrier({
                           ...currentCarrier,
-                          value: value === "" ? 0 : parseFloat(value),
+                          value: value === "" || value === "." ? 0 : parseFloat(value),
                         });
+                      }
+                    }}
+                    onBlur={() => {
+                      // Ao sair do campo, formatar o valor se necessário
+                      if (valueInput && !valueInput.endsWith(".")) {
+                        const num = parseFloat(valueInput);
+                        if (!isNaN(num)) {
+                          setValueInput(num.toString());
+                        }
                       }
                     }}
                     className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
