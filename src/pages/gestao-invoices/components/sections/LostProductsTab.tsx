@@ -8,7 +8,9 @@ import { usePermissionStore } from "../../../../store/permissionsStore";
 
 interface LostProduct {
   id: string;
-  invoiceProductId: string;
+  invoiceProductId: string | null;
+  productId?: string; // ID do produto quando invoiceProduct é null
+  invoiceId?: string; // ID da invoice quando invoiceProduct é null
   quantity: number;
   freightPercentage: number;
   freightValue: number;
@@ -17,6 +19,18 @@ interface LostProduct {
   completedDate?: string | null; // Data "DD/MM/YYYY" quando lista foi concluída
   createdAt: string;
   updatedAt: string;
+  product?: {
+    id: string;
+    name: string;
+    code: string;
+  };
+  invoice?: {
+    id: string;
+    number: string;
+    supplier?: {
+      name: string;
+    };
+  };
   invoiceProduct: {
     id: string;
     productId: string;
@@ -34,7 +48,7 @@ interface LostProduct {
         name: string;
       };
     };
-  };
+  } | null;
 }
 
 interface LostProductsSummary {
@@ -297,8 +311,8 @@ export function LostProductsTab() {
   };
 
   const handleFreightChange = (dateKey: string, value: string) => {
-    // Permitir apenas números e ponto decimal, remover vírgulas
-    const cleanValue = value.replace(/,/g, ".").replace(/[^0-9.]/g, "");
+    // Permitir apenas números, vírgulas e pontos
+    const cleanValue = value.replace(/[^0-9,]/g, "").replace(/,/g, ".");
 
     // Se estiver vazio, definir como 0
     if (cleanValue === "" || cleanValue === ".") {
@@ -307,6 +321,12 @@ export function LostProductsTab() {
         [dateKey]: 0,
       }));
       return;
+    }
+
+    // Permitir apenas um ponto decimal
+    const parts = cleanValue.split(".");
+    if (parts.length > 2) {
+      return; // Bloqueia se tiver mais de um ponto
     }
 
     const numValue = Number.parseFloat(cleanValue);
@@ -681,11 +701,11 @@ export function LostProductsTab() {
                         <input
                           type="text"
                           inputMode="decimal"
-                          value={editingFreightPercentage > 0 ? editingFreightPercentage.toString() : ""}
+                          value={editingFreightPercentage > 0 ? editingFreightPercentage.toString().replace(".", ",") : ""}
                           onChange={(e) => handleFreightChange(dateKey, e.target.value)}
                           onWheel={(e) => e.currentTarget.blur()}
                           disabled={isCompleted || isSubmitting}
-                          placeholder="0.00"
+                          placeholder="0,00"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-center text-lg font-semibold mb-3"
                         />
                         <button
