@@ -355,6 +355,10 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       }
 
+      // Disparar evento global para atualizar outras abas
+      console.log("🔄 [INVOICE PRODUCTS] Disparando evento invoiceUpdated...");
+      window.dispatchEvent(new Event("invoiceUpdated"));
+
       if (props.onInvoiceSaved) {
         props.onInvoiceSaved();
       }
