@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { Box, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { Box, Loader2, Plus, Save, Trash2, X, Upload } from "lucide-react";
 import { api } from "../../../../services/api";
 import { Invoice } from "../types/invoice";
 import Swal from "sweetalert2";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
 import { useNotification } from "../../../../hooks/notification";
 import { useActionLoading } from "../../context/ActionLoadingContext";
+import { ImportPdfModal } from "../modals/ImportPdfModal";
+import { ReviewPdfModal } from "../modals/ReviewPdfModal";
 
 export type InvoiceProduct = {
   id: string;
@@ -41,6 +43,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const [products, setProducts] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [valorRaw, setValorRaw] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [pdfData, setPdfData] = useState<any>(null);
   const [productForm, setProductForm] = useState({
     productId: "",
     quantity: "",
@@ -201,6 +206,61 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     setShowProductForm(false);
   };
 
+  const handleImportSuccess = (data: any) => {
+    setPdfData(data);
+    setShowReviewModal(true);
+  };
+
+  const handleConfirmPdf = async (editedData: any) => {
+    try {
+      setShowReviewModal(false);
+
+      // Preencher número e data da invoice automaticamente
+      setCurrentInvoice({
+        ...currentInvoice,
+        number: editedData.invoiceData.number,
+        date: editedData.invoiceData.date,
+      });
+
+      // Adicionar produtos do PDF ao currentInvoice
+      const newProducts = editedData.products.map((pdfProduct: any) => ({
+        id: pdfProduct.validation.productId || pdfProduct.sku,
+        name: pdfProduct.name,
+        quantity: pdfProduct.quantity,
+        value: pdfProduct.rate,
+        weight: 0, // Pode ser preenchido depois
+        total: pdfProduct.amount,
+        received: false,
+        receivedQuantity: 0,
+        // Guardar IMEIs temporariamente para salvar depois
+        _imeis: pdfProduct.imeis || [], // Campo temporário
+      }));
+
+      setCurrentInvoice({
+        ...currentInvoice,
+        number: editedData.invoiceData.number,
+        date: editedData.invoiceData.date,
+        products: [...currentInvoice.products, ...newProducts],
+      });
+
+      // Guardar dados do PDF para salvar IMEIs depois
+      setPdfData(editedData);
+
+      setOpenNotification({
+        type: "success",
+        title: "Sucesso!",
+        notification: `${newProducts.length} produtos adicionados! Complete os dados e salve a invoice.`,
+      });
+    } catch (error) {
+      console.error("Erro ao processar dados do PDF:", error);
+      setOpenNotification({
+        type: "error",
+        title: "Erro",
+        notification: "Erro ao adicionar produtos do PDF",
+      });
+    }
+  };
+
   const saveInvoice = async () => {
     // Proteção imediata contra cliques duplos
     if (isActionLoading) {
@@ -305,6 +365,52 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       }
 
+      // ✨ NOVO: Salvar IMEIs automaticamente se houver produtos com IMEIs
+      const createdInvoice = response.data;
+      if (createdInvoice?.products && Array.isArray(createdInvoice.products)) {
+        let savedImeisCount = 0;
+        let totalImeisCount = 0;
+
+        for (let i = 0; i < currentInvoice.products.length; i++) {
+          const localProduct = currentInvoice.products[i];
+          const createdProduct = createdInvoice.products[i];
+
+          // Verificar se tem IMEIs no produto local (campo temporário _imeis)
+          if (localProduct._imeis && Array.isArray(localProduct._imeis) && localProduct._imeis.length > 0) {
+            totalImeisCount += localProduct._imeis.length;
+
+            try {
+              await api.post("/invoice/imeis/save", {
+                invoiceProductId: createdProduct.id,
+                imeis: localProduct._imeis,
+              });
+              savedImeisCount += localProduct._imeis.length;
+              console.log(`✅ ${localProduct._imeis.length} IMEIs salvos para produto ${localProduct.name}`);
+            } catch (error: any) {
+              console.error(`❌ Erro ao salvar IMEIs do produto ${localProduct.name}:`, error);
+              
+              // Se for erro 409 (duplicados), mostrar aviso mas não bloquear
+              if (error.response?.status === 409) {
+                const duplicates = error.response?.data?.data?.duplicates || [];
+                console.warn(`⚠️ ${duplicates.length} IMEIs duplicados encontrados:`, duplicates);
+              }
+            }
+          }
+        }
+
+        // Mostrar notificação sobre IMEIs salvos
+        if (totalImeisCount > 0) {
+          setOpenNotification({
+            type: savedImeisCount === totalImeisCount ? "success" : "warning",
+            title: savedImeisCount === totalImeisCount ? "IMEIs Salvos!" : "Atenção",
+            notification: `${savedImeisCount} de ${totalImeisCount} IMEIs foram salvos com sucesso.`,
+          });
+        }
+      }
+
+      // Limpar dados do PDF após salvar
+      setPdfData(null);
+
       // Buscar o próximo número de invoice automaticamente
       try {
         const nextNumberResponse = await api.get("/invoice/next-number");
@@ -402,17 +508,42 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           <Box className="mr-2 inline" size={18} />
           Produtos
         </h2>
-        {!showProductForm && (
-          <button
-            onClick={() => setShowProductForm(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isActionLoading}
-          >
-            <Plus className="mr-1 inline" size={16} />
-            Adicionar Produto
-          </button>
-        )}
+        <div className="flex gap-2">
+          {!showProductForm && (
+            <>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
+              >
+                <Upload className="mr-1 inline" size={16} />
+                Importar em Massa
+              </button>
+              <button
+                onClick={() => setShowProductForm(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
+              >
+                <Plus className="mr-1 inline" size={16} />
+                Adicionar Produto
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Modais */}
+      <ImportPdfModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={handleImportSuccess}
+      />
+      <ReviewPdfModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        pdfData={pdfData}
+        onConfirm={handleConfirmPdf}
+      />
 
       {showProductForm && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
