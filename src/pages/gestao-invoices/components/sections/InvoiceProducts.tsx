@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
-import { Box, Loader2, Plus, Save, Trash2, X } from "lucide-react";
+import { Box, Loader2, Plus, Save, Trash2, X, Upload } from "lucide-react";
 import { api } from "../../../../services/api";
 import { Invoice } from "../types/invoice";
 import Swal from "sweetalert2";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
 import { useNotification } from "../../../../hooks/notification";
 import { useActionLoading } from "../../context/ActionLoadingContext";
+import { ImportPdfModal } from "../modals/ImportPdfModal";
+import { ReviewPdfModal } from "../modals/ReviewPdfModal";
 
 export type InvoiceProduct = {
   id: string;
@@ -41,6 +43,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const [products, setProducts] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [valorRaw, setValorRaw] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [pdfData, setPdfData] = useState<any>(null);
   const [productForm, setProductForm] = useState({
     productId: "",
     quantity: "",
@@ -199,6 +204,33 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     });
 
     setShowProductForm(false);
+  };
+
+  const handleImportSuccess = (data: any) => {
+    setPdfData(data);
+    setShowReviewModal(true);
+  };
+
+  const handleConfirmPdf = async (editedData: any) => {
+    try {
+      setShowReviewModal(false);
+      
+      // TODO: Criar invoice a partir dos dados do PDF
+      // TODO: Salvar IMEIs automaticamente
+      
+      setOpenNotification({
+        type: "info",
+        title: "Em desenvolvimento",
+        notification: "Função de criação de invoice a partir do PDF será implementada em breve!",
+      });
+    } catch (error) {
+      console.error("Erro ao processar dados do PDF:", error);
+      setOpenNotification({
+        type: "error",
+        title: "Erro",
+        notification: "Erro ao processar dados do PDF",
+      });
+    }
   };
 
   const saveInvoice = async () => {
@@ -402,17 +434,42 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           <Box className="mr-2 inline" size={18} />
           Produtos
         </h2>
-        {!showProductForm && (
-          <button
-            onClick={() => setShowProductForm(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isActionLoading}
-          >
-            <Plus className="mr-1 inline" size={16} />
-            Adicionar Produto
-          </button>
-        )}
+        <div className="flex gap-2">
+          {!showProductForm && (
+            <>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
+              >
+                <Upload className="mr-1 inline" size={16} />
+                Importar em Massa
+              </button>
+              <button
+                onClick={() => setShowProductForm(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isActionLoading}
+              >
+                <Plus className="mr-1 inline" size={16} />
+                Adicionar Produto
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Modais */}
+      <ImportPdfModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={handleImportSuccess}
+      />
+      <ReviewPdfModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        pdfData={pdfData}
+        onConfirm={handleConfirmPdf}
+      />
 
       {showProductForm && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
