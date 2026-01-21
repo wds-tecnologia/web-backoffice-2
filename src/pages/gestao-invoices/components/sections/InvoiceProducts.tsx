@@ -214,21 +214,49 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const handleConfirmPdf = async (editedData: any) => {
     try {
       setShowReviewModal(false);
-      
-      // TODO: Criar invoice a partir dos dados do PDF
-      // TODO: Salvar IMEIs automaticamente
-      
+
+      // Preencher número e data da invoice automaticamente
+      setCurrentInvoice({
+        ...currentInvoice,
+        number: editedData.invoiceData.number,
+        date: editedData.invoiceData.date,
+      });
+
+      // Adicionar produtos do PDF ao currentInvoice
+      const newProducts = editedData.products.map((pdfProduct: any) => ({
+        id: pdfProduct.validation.productId || pdfProduct.sku,
+        name: pdfProduct.name,
+        quantity: pdfProduct.quantity,
+        value: pdfProduct.rate,
+        weight: 0, // Pode ser preenchido depois
+        total: pdfProduct.amount,
+        received: false,
+        receivedQuantity: 0,
+        // Guardar IMEIs temporariamente para salvar depois
+        _imeis: pdfProduct.imeis || [], // Campo temporário
+      }));
+
+      setCurrentInvoice({
+        ...currentInvoice,
+        number: editedData.invoiceData.number,
+        date: editedData.invoiceData.date,
+        products: [...currentInvoice.products, ...newProducts],
+      });
+
+      // Guardar dados do PDF para salvar IMEIs depois
+      setPdfData(editedData);
+
       setOpenNotification({
-        type: "info",
-        title: "Em desenvolvimento",
-        notification: "Função de criação de invoice a partir do PDF será implementada em breve!",
+        type: "success",
+        title: "Sucesso!",
+        notification: `${newProducts.length} produtos adicionados! Complete os dados e salve a invoice.`,
       });
     } catch (error) {
       console.error("Erro ao processar dados do PDF:", error);
       setOpenNotification({
         type: "error",
         title: "Erro",
-        notification: "Erro ao processar dados do PDF",
+        notification: "Erro ao adicionar produtos do PDF",
       });
     }
   };
@@ -336,6 +364,52 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           notification: "Invoice salva com sucesso!",
         });
       }
+
+      // ✨ NOVO: Salvar IMEIs automaticamente se houver produtos com IMEIs
+      const createdInvoice = response.data;
+      if (createdInvoice?.products && Array.isArray(createdInvoice.products)) {
+        let savedImeisCount = 0;
+        let totalImeisCount = 0;
+
+        for (let i = 0; i < currentInvoice.products.length; i++) {
+          const localProduct = currentInvoice.products[i];
+          const createdProduct = createdInvoice.products[i];
+
+          // Verificar se tem IMEIs no produto local (campo temporário _imeis)
+          if (localProduct._imeis && Array.isArray(localProduct._imeis) && localProduct._imeis.length > 0) {
+            totalImeisCount += localProduct._imeis.length;
+
+            try {
+              await api.post("/invoice/imeis/save", {
+                invoiceProductId: createdProduct.id,
+                imeis: localProduct._imeis,
+              });
+              savedImeisCount += localProduct._imeis.length;
+              console.log(`✅ ${localProduct._imeis.length} IMEIs salvos para produto ${localProduct.name}`);
+            } catch (error: any) {
+              console.error(`❌ Erro ao salvar IMEIs do produto ${localProduct.name}:`, error);
+              
+              // Se for erro 409 (duplicados), mostrar aviso mas não bloquear
+              if (error.response?.status === 409) {
+                const duplicates = error.response?.data?.data?.duplicates || [];
+                console.warn(`⚠️ ${duplicates.length} IMEIs duplicados encontrados:`, duplicates);
+              }
+            }
+          }
+        }
+
+        // Mostrar notificação sobre IMEIs salvos
+        if (totalImeisCount > 0) {
+          setOpenNotification({
+            type: savedImeisCount === totalImeisCount ? "success" : "warning",
+            title: savedImeisCount === totalImeisCount ? "IMEIs Salvos!" : "Atenção",
+            notification: `${savedImeisCount} de ${totalImeisCount} IMEIs foram salvos com sucesso.`,
+          });
+        }
+      }
+
+      // Limpar dados do PDF após salvar
+      setPdfData(null);
 
       // Buscar o próximo número de invoice automaticamente
       try {
