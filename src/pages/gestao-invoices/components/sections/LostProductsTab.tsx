@@ -347,7 +347,7 @@ export function LostProductsTab() {
     setOpenNotification({
       type: "success",
       title: "Sucesso!",
-      notification: "Frete confirmado!",
+      notification: "Frete confirmado!", 
     });
   };
 
