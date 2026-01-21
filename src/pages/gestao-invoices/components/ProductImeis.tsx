@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, Copy, Smartphone } from "lucide-react";
-import { api } from "../../../../services/api";
-import { useNotification } from "../../../../hooks/notification";
+import { api } from "../../../services/api";
+import { useNotification } from "../../../hooks/notification";
 
 interface ProductImeisProps {
   invoiceProductId: string;
