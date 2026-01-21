@@ -92,10 +92,19 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
       handleClose();
     } catch (error: any) {
       console.error("Erro ao importar PDF:", error);
+      
+      let errorMessage = "Erro ao processar o PDF. Tente novamente.";
+      
+      if (error.response?.status === 404) {
+        errorMessage = "Endpoint de importação de PDF não encontrado. Verifique se o backend está atualizado.";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       setOpenNotification({
         type: "error",
         title: "Erro ao Importar PDF",
-        notification: error.response?.data?.message || "Erro ao processar o PDF. Tente novamente.",
+        notification: errorMessage,
       });
     } finally {
       setIsUploading(false);
