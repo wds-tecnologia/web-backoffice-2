@@ -5,6 +5,7 @@ import { Invoice } from "../types/invoice"; // Se necessário, ajuste o caminho 
 import { Product } from "./ProductsTab";
 import Swal from "sweetalert2";
 import { useActionLoading } from "../../context/ActionLoadingContext";
+import { ProductSearchSelect } from "./SupplierSearchSelect";
 
 export type InvoiceData = {
   id: string;
@@ -600,12 +601,10 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                 <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4">
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Produto</label>
-                      <select
-                        className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                      <ProductSearchSelect
+                        products={products}
                         value={newProduct.productId}
-                        onChange={(e) => {
-                          const selectedId = e.target.value;
+                        onChange={(selectedId) => {
                           const product = products.find((p) => p.id === selectedId);
 
                           const price = product?.priceweightAverage ?? 0;
@@ -625,16 +624,8 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                             weight: price > 0 ? String(price) : "",
                           });
                         }}
-                      >
-                        <option value="">Selecione</option>
-                        {products
-                          .filter((p) => p.active)
-                          .map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ))}
-                      </select>
+                        inline={true}
+                      />
                     </div>
 
                     <div>
