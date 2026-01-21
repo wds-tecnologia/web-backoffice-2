@@ -6,6 +6,7 @@ import { Product } from "./ProductsTab";
 import Swal from "sweetalert2";
 import { useActionLoading } from "../../context/ActionLoadingContext";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
+import { ProductImeis } from "../ProductImeis";
 
 export type InvoiceData = {
   id: string;
@@ -849,7 +850,13 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                       .map((product, index) => (
                         <tr key={index}>
                           <td className="px-4 py-2 text-sm text-gray-700">
-                            {products.find((item) => item.id === product.productId)?.name}
+                            <div>
+                              {products.find((item) => item.id === product.productId)?.name}
+                              <ProductImeis
+                                invoiceProductId={product.id}
+                                productName={products.find((item) => item.id === product.productId)?.name || "Produto"}
+                              />
+                            </div>
                           </td>
                           <td className="px-4 py-2 text-sm text-right">{product.quantity}</td>
                           <td className="px-4 py-2 text-sm text-right">{product.value.toFixed(2)}</td>
