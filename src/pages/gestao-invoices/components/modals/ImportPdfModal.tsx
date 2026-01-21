@@ -76,11 +76,8 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      const response = await api.post("/invoice/import-from-pdf", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const response = await api.post("/invoice/import-from-pdf", formData);
+      // Nota: Axios define automaticamente o Content-Type como multipart/form-data com o boundary correto
 
       setOpenNotification({
         type: "success",
