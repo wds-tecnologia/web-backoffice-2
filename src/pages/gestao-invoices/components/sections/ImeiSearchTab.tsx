@@ -91,26 +91,34 @@ export function ImeiSearchTab() {
   const fetchAllImeis = async () => {
     setIsLoadingImeis(true);
     try {
-      const response = await api.get("/invoice/imei/list-all");
-      const imeisData: ImeiData[] = response.data.imeis || [];
+      // Endpoint alinhado com os demais: /invoice/imeis/... (plural)
+      const response = await api.get("/invoice/imeis/list-all");
+      const imeisData: ImeiData[] = response.data.imeis || response.data || [];
       
-      setAllImeisData(imeisData);
+      setAllImeisData(Array.isArray(imeisData) ? imeisData : []);
       
-      const imeisList: ImeiListItem[] = imeisData.map((item) => ({
+      const list = Array.isArray(imeisData) ? imeisData : [];
+      const imeisList: ImeiListItem[] = list.map((item: ImeiData) => ({
         imei: item.imei,
-        productName: item.product.name,
-        invoiceNumber: item.invoice.number,
+        productName: item.product?.name ?? "",
+        invoiceNumber: item.invoice?.number ?? "",
       }));
       
       setAllImeis(imeisList);
       setFilteredImeis(imeisList);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao carregar lista de IMEIs:", error);
+      const is404 = error?.response?.status === 404;
       setOpenNotification({
         type: "error",
         title: "Erro",
-        notification: "Erro ao carregar lista de IMEIs",
+        notification: is404
+          ? "Listagem de IMEIs não disponível (endpoint não encontrado). Verifique com o backend."
+          : "Erro ao carregar lista de IMEIs",
       });
+      setAllImeis([]);
+      setFilteredImeis([]);
+      setAllImeisData([]);
     } finally {
       setIsLoadingImeis(false);
     }
@@ -143,7 +151,7 @@ export function ImeiSearchTab() {
     setShowDropdown(false);
 
     try {
-      const response = await api.get(`/invoice/imei/search?imei=${encodeURIComponent(trimmedImei)}`);
+      const response = await api.get(`/invoice/imeis/search?imei=${encodeURIComponent(trimmedImei)}`);
       setImeiData(response.data);
       setNotFound(false);
     } catch (error: any) {
