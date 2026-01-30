@@ -15,11 +15,10 @@ type Props = {
 };
 
 export function ModalAnaliseProduct({ product, onClose, onConfirm }: Props) {
-  const [quantity, setQuantity] = useState<number | "">("");
-  const [isLoading, setIsLoading] = useState(false);
-
   const maxAvailable =
     product.quantity - (product.receivedQuantity || 0) - (product.quantityAnalizer || 0);
+  const [quantity, setQuantity] = useState<number | "">(maxAvailable > 0 ? maxAvailable : "");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
