@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, Package, FileText, Building2, Truck, Calendar, DollarSign, ChevronDown } from "lucide-react";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
+import { matchSearchTerms } from "../utils/searchMatch";
 
 interface ImeiData {
   imei: string;
@@ -74,16 +75,14 @@ export function ImeiSearchTab() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Filtrar IMEIs conforme digita
+  // Filtrar IMEIs conforme digita (busca por múltiplos termos: imei, produto, invoice)
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredImeis(allImeis);
     } else {
-      const filtered = allImeis.filter((item) =>
-        item.imei.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const searchableText = (item: ImeiListItem) =>
+        `${item.imei} ${item.productName} ${item.invoiceNumber}`.trim();
+      const filtered = allImeis.filter((item) => matchSearchTerms(searchTerm, searchableText(item)));
       setFilteredImeis(filtered);
     }
   }, [searchTerm, allImeis]);

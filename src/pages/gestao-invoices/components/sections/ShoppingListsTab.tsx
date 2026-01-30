@@ -140,6 +140,7 @@ export function ShoppingListsTab() {
       productId: string;
       quantity: number;
       notes?: string;
+      id?: string;
     }>,
   });
 
@@ -1241,7 +1242,12 @@ export function ShoppingListsTab() {
 
           const updatedItems =
             list.shoppingListItems?.map((i: ShoppingListItem) => {
-              // IMPORTANTE: Usar apenas o ID específico, não productId (para não afetar outros itens do mesmo produto)
+              const base = {
+                productId: i.productId,
+                quantity: i.id === currentItemId ? quantityToSend : i.quantity,
+                notes: i.notes || "",
+                itemId: i.id,
+              };
               if (i.id === currentItemId) {
                 console.log("✅ Atualizando item específico:", {
                   id: i.id,
@@ -1249,18 +1255,8 @@ export function ShoppingListsTab() {
                   oldQuantity: i.quantity,
                   newQuantity: quantityToSend,
                 });
-                return {
-                  productId: i.productId,
-                  quantity: quantityToSend, // Atualizar quantidade pedida apenas deste item INDIVIDUAL
-                  notes: i.notes || "",
-                };
               }
-              // Manter todos os outros itens exatamente como estão (SEM MUDANÇAS)
-              return {
-                productId: i.productId,
-                quantity: i.quantity, // Manter quantidade original
-                notes: i.notes || "",
-              };
+              return base;
             }) || [];
 
           console.log("Itens que serão enviados ao backend:", {
@@ -1278,19 +1274,28 @@ export function ShoppingListsTab() {
             items: updatedItems,
           });
 
-          // IMPORTANTE: Após atualizar a lista, os itens são recriados, então precisamos:
-          // 1. Buscar o NOVO ID do item atualizado
-          // 2. Restaurar status e quantidades compradas de TODOS os itens INDIVIDUALMENTE
           const refreshedListResponse = await api.get(`/invoice/shopping-lists/${listId}`);
           const refreshedList = refreshedListResponse.data;
 
-          // Encontrar o item atualizado usando uma combinação única de características
-          // IMPORTANTE: Cada item é único e individual - usar índice + características para identificar corretamente
           const originalItemIndex =
             list.shoppingListItems?.findIndex((i: ShoppingListItem) => i.id === currentItemId) ?? -1;
 
-          // Tentar encontrar pelo índice primeiro (mais confiável se a ordem não mudou)
-          let refreshedItem = originalItemIndex >= 0 ? refreshedList.shoppingListItems?.[originalItemIndex] : undefined;
+          // Backend novo preserva ids (itemId) → item continua com o mesmo id; backend antigo recria → novos ids
+          const backendPreservedIds = refreshedList.shoppingListItems?.some(
+            (i: ShoppingListItem) => i.id === currentItemId
+          );
+
+          let refreshedItem: ShoppingListItem | undefined;
+          if (backendPreservedIds) {
+            refreshedItem = refreshedList.shoppingListItems?.find((i: ShoppingListItem) => i.id === currentItemId);
+            if (refreshedItem) {
+              currentItem = refreshedItem;
+              console.log("✅ Backend preservou ids; item encontrado por id:", refreshedItem.id);
+            }
+          }
+
+          if (!refreshedItem) {
+            refreshedItem = originalItemIndex >= 0 ? refreshedList.shoppingListItems?.[originalItemIndex] : undefined;
 
           // VALIDAÇÃO CRÍTICA: Verificar se o item encontrado pelo índice é realmente o correto
           // Comparar productId + quantidade (nova quantidade) para garantir que é o item certo
@@ -1378,16 +1383,16 @@ export function ShoppingListsTab() {
 
           const itemBeingUpdatedId = currentItemId;
 
-          // Criar um mapa de itens originais para facilitar busca
-          const originalItemsMap = new Map<string, ShoppingListItem>();
-          list.shoppingListItems?.forEach((i: ShoppingListItem) => {
-            originalItemsMap.set(i.id, i);
-          });
-
-          // IMPORTANTE: Cada item é único e individual - usar índice para mapear corretamente
-          // Como os itens são recriados na mesma ordem, podemos usar o índice original
-          // CRÍTICO: Apenas restaurar itens que REALMENTE estavam comprados ANTES da atualização
-          console.log("Iniciando restauração de itens:", {
+          if (backendPreservedIds) {
+            const preservedData = itemsStatusArray[originalItemIndex];
+            if (preservedData && preservedData.receivedQuantity > 0) {
+              await api.patch("/invoice/shopping-lists/update-purchased-quantity", {
+                itemId: currentItemId,
+                purchasedQuantity: preservedData.receivedQuantity,
+              });
+            }
+          } else {
+          console.log("Iniciando restauração de itens (backend recriou):", {
             totalItems: refreshedList.shoppingListItems?.length,
             preservedItems: itemsStatusArray.length,
             itemBeingUpdatedId,
@@ -1473,11 +1478,10 @@ export function ShoppingListsTab() {
             }
           });
 
-          // Aguardar todas as restaurações (mas não falhar se alguma der erro)
           const restoreResults = await Promise.allSettled(restorePromises);
           console.log("Resultados das restaurações:", restoreResults.length, "itens restaurados");
+          }
 
-          // Buscar novamente para ter os dados atualizados ANTES de atualizar o item atual
           const finalListResponse = await api.get(`/invoice/shopping-lists/${listId}`);
           const finalList = finalListResponse.data;
 
@@ -2029,8 +2033,7 @@ export function ShoppingListsTab() {
   const handleEditList = (list: ShoppingList) => {
     setEditingList(list);
     setIsEditing(list.id);
-    // Manter pendentes na lista de edição para que possam ser modificados ou mantidos
-    // Itens comprados são mantidos automaticamente pelo backend
+    // Manter pendentes na lista de edição para que possam ser modificados ou mantidos (com id para PUT preservar itemId)
     const pendingItems = list.shoppingListItems?.filter((item) => item.status === "PENDING") || [];
     setNewList({
       name: list.name,
@@ -2039,6 +2042,7 @@ export function ShoppingListsTab() {
         productId: item.productId,
         quantity: item.quantity,
         notes: item.notes || "",
+        id: item.id,
       })),
     });
   };
@@ -2132,21 +2136,16 @@ export function ShoppingListsTab() {
         const itemToMerge = existingItems.find((i: ShoppingListItem) => i.id === transferSelectedItemToMerge);
 
         if (itemToMerge) {
-          // Atualizar a quantidade do item existente
+          const newQuantityMerged = itemToMerge.quantity + quantityToTransfer;
+          // Enviar itemId para itens existentes: backend novo atualiza em vez de recriar (preserva receivedQuantity)
           const currentItems =
             targetList.shoppingListItems?.map((i: ShoppingListItem) => {
-              if (i.id === transferSelectedItemToMerge) {
-                return {
-                  productId: i.productId,
-                  quantity: i.quantity + quantityToTransfer,
-                  notes: i.notes || "",
-                };
-              }
-              return {
+              const base = {
                 productId: i.productId,
-                quantity: i.quantity,
+                quantity: i.id === transferSelectedItemToMerge ? newQuantityMerged : i.quantity,
                 notes: i.notes || "",
               };
+              return { ...base, itemId: i.id };
             }) || [];
 
           await api.put(`/invoice/shopping-lists/${selectedListForTransfer}`, {
@@ -2155,20 +2154,23 @@ export function ShoppingListsTab() {
             items: currentItems,
           });
 
-          // Se o item transferido estava comprado, atualizar o status na lista destino
+          // Se o item transferido estava comprado, atualizar o status na lista destino (preservar comprado do destino + transferido)
           if (wasPurchased && purchasedQuantity > 0) {
-            // Buscar a lista atualizada
             const updatedTargetListResponse = await api.get(`/invoice/shopping-lists/${selectedListForTransfer}`);
             const updatedTargetList = updatedTargetListResponse.data;
-
-            // Encontrar o item atualizado
-            const mergedItem = updatedTargetList.shoppingListItems?.find(
-              (i: ShoppingListItem) => i.id === transferSelectedItemToMerge
-            );
-
+            // Backend novo preserva ids → encontrar por id; backend antigo recria → encontrar por productId + quantidade
+            const mergedItem =
+              updatedTargetList.shoppingListItems?.find(
+                (i: ShoppingListItem) => i.id === transferSelectedItemToMerge
+              ) ||
+              updatedTargetList.shoppingListItems?.find(
+                (i: ShoppingListItem) =>
+                  i.productId === selectedItem.productId && Number(i.quantity) === newQuantityMerged
+              );
             if (mergedItem) {
-              // Atualizar quantidade comprada (somar com a quantidade comprada do item transferido)
-              const newPurchasedQuantity = (mergedItem.receivedQuantity || 0) + purchasedQuantity;
+              // Usar valor esperado: comprado do item destino (itemToMerge) + comprado do item transferido (purchasedQuantity)
+              // para não depender do PUT ter preservado receivedQuantity (evita zerar itens já confirmados)
+              const newPurchasedQuantity = (itemToMerge.receivedQuantity || 0) + purchasedQuantity;
               await api.patch("/invoice/shopping-lists/update-purchased-quantity", {
                 itemId: mergedItem.id,
                 purchasedQuantity: newPurchasedQuantity,
@@ -2177,15 +2179,15 @@ export function ShoppingListsTab() {
           }
         }
       } else {
-        // Criar novo item separado
+        // Criar novo item separado: itens existentes com itemId (backend novo preserva), novo sem itemId
         const currentItems =
           targetList.shoppingListItems?.map((i: ShoppingListItem) => ({
+            itemId: i.id,
             productId: i.productId,
             quantity: i.quantity,
             notes: i.notes || "",
           })) || [];
 
-        // Quando duplicar item totalmente comprado, usar quantidade total, não apenas pendente
         const quantityForNewItem =
           transferMode === "duplicate" && isFullyPurchased ? quantityToTransfer : quantityToTransfer;
 
@@ -2201,20 +2203,14 @@ export function ShoppingListsTab() {
           items: currentItems,
         });
 
-        // Se o item estava comprado e foi criado novo item, atualizar o status na lista destino
         if (wasPurchased && purchasedQuantity > 0 && (!transferAddToExisting || !transferSelectedItemToMerge)) {
-          // Buscar a lista atualizada para encontrar o item recém-criado
           const updatedTargetListResponse = await api.get(`/invoice/shopping-lists/${selectedListForTransfer}`);
           const updatedTargetList = updatedTargetListResponse.data;
-
-          // Encontrar o item recém-criado pelo productId (o último pendente criado)
+          const oldItemIds = new Set((targetList.shoppingListItems || []).map((i: ShoppingListItem) => i.id));
           const transferredItem = updatedTargetList.shoppingListItems?.find(
-            (i: ShoppingListItem) =>
-              i.productId === selectedItem.productId && i.status === "PENDING" && i.quantity === quantityToTransfer
+            (i: ShoppingListItem) => !oldItemIds.has(i.id) && i.productId === selectedItem.productId
           );
-
           if (transferredItem) {
-            // Atualizar o item para manter o status de comprado
             await api.patch("/invoice/shopping-lists/update-purchased-quantity", {
               itemId: transferredItem.id,
               purchasedQuantity: purchasedQuantity,
@@ -2299,12 +2295,14 @@ export function ShoppingListsTab() {
       setTransferMode("transfer"); // Resetar para modo padrão
       setIsTransferring(false);
       await fetchData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao transferir item:", error);
+      const message =
+        error?.response?.data?.message || error?.response?.data?.error || "Erro ao transferir item";
       setOpenNotification({
         type: "error",
         title: "Erro!",
-        notification: "Erro ao transferir item",
+        notification: message,
       });
       setIsTransferring(false);
     }
@@ -2472,27 +2470,23 @@ export function ShoppingListsTab() {
             originalIndex: index,
           })) || [];
 
-      // Garantir que todos os itens tenham quantity como número
-      // NÃO MESCLAR - manter todos os itens como estão (permitir duplicados)
+      // Garantir que todos os itens tenham quantity como número; enviar itemId quando existir (backend futuro preserva)
       const validatedNewItems = newList.items.map((item) => ({
         productId: item.productId,
         quantity: Number(item.quantity) || 0,
         notes: item.notes || "",
+        ...(item.id && { itemId: item.id }),
       }));
 
-      // IMPORTANTE: NÃO remover itens pendentes que têm o mesmo productId de itens comprados
-      // Porque podem ser itens diferentes (duplicados permitidos)
-      // Apenas incluir os itens comprados na lista final junto com os novos itens
-
-      // Converter purchasedItems para o formato esperado pela API (sem campos extras)
+      // Converter purchasedItems para o formato da API com itemId (backend futuro preserva receivedQuantity)
       const purchasedItemsForApi = purchasedItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
         notes: item.notes,
+        itemId: item.originalId,
       }));
 
-      // Combinar: itens da lista de edição (pendentes mantidos + novos) + comprados mantidos
-      // PERMITIR DUPLICADOS - itens com mesmo productId podem coexistir
+      // Combinar: itens da lista de edição (pendentes + novos) + comprados
       const allItems = [...validatedNewItems, ...purchasedItemsForApi];
 
       // Validar que há pelo menos um item
@@ -2528,103 +2522,80 @@ export function ShoppingListsTab() {
         items: allItems,
       });
 
-      // Restaurar status de comprado para os itens que já estavam comprados
+      // Restaurar status de comprado só quando o backend não preservou (PUT antigo recria itens)
       if (purchasedItems.length > 0) {
-        // Buscar lista atualizada após a edição
         const updatedListResponse = await api.get(`/invoice/shopping-lists/${editingList.id}`);
         const updatedList = updatedListResponse.data;
 
-        console.log("Restaurando itens comprados:", {
-          purchasedItemsCount: purchasedItems.length,
-          updatedListItemsCount: updatedList.shoppingListItems?.length || 0,
+        const backendPreservedIds = purchasedItems.every((p) => {
+          const found = updatedList.shoppingListItems?.find((i: ShoppingListItem) => i.id === p.originalId);
+          return !!found && (found.receivedQuantity || 0) === p.purchasedQuantity;
         });
 
-        // Para cada item que estava comprado, restaurar o status usando características únicas
-        const restorePromises: Promise<any>[] = [];
-        const restoredItemIds = new Set<string>(); // Evitar restaurar o mesmo item duas vezes
+        if (backendPreservedIds) {
+          console.log("Backend preservou itens (itemId); não é necessário restaurar receivedQuantity.");
+        } else {
+          console.log("Restaurando itens comprados (backend recriou itens):", {
+            purchasedItemsCount: purchasedItems.length,
+            updatedListItemsCount: updatedList.shoppingListItems?.length || 0,
+          });
 
-        for (const purchasedItem of purchasedItems) {
-          // CRÍTICO: Buscar pelo productId + quantity + receivedQuantity para identificar o item correto
-          // Porque pode haver múltiplos itens do mesmo produto
-          let updatedItem = updatedList.shoppingListItems?.find(
-            (i: ShoppingListItem) =>
-              !restoredItemIds.has(i.id) && // Não restaurar o mesmo item duas vezes
-              i.productId === purchasedItem.productId &&
-              i.quantity === purchasedItem.quantity &&
-              (i.receivedQuantity || 0) === purchasedItem.purchasedQuantity
-          );
+          const restorePromises: Promise<any>[] = [];
+          const restoredItemIds = new Set<string>();
 
-          // Se não encontrou pela combinação exata, tentar apenas por productId + quantity
-          // (caso o receivedQuantity ainda não tenha sido restaurado)
-          if (!updatedItem) {
-            // Buscar todos os itens candidatos (mesmo productId + quantity)
-            const candidateItems =
-              updatedList.shoppingListItems?.filter(
-                (i: ShoppingListItem) =>
-                  !restoredItemIds.has(i.id) &&
-                  i.productId === purchasedItem.productId &&
-                  i.quantity === purchasedItem.quantity &&
-                  (i.receivedQuantity || 0) === 0 // Ainda não foi restaurado
-              ) || [];
+          for (const purchasedItem of purchasedItems) {
+            let updatedItem = updatedList.shoppingListItems?.find(
+              (i: ShoppingListItem) =>
+                !restoredItemIds.has(i.id) &&
+                i.productId === purchasedItem.productId &&
+                i.quantity === purchasedItem.quantity &&
+                (i.receivedQuantity || 0) === purchasedItem.purchasedQuantity
+            );
 
-            // Se há apenas um candidato, usar ele
-            // Se há múltiplos candidatos, usar o primeiro (a ordem pode variar após recriação)
-            if (candidateItems.length > 0) {
-              updatedItem = candidateItems[0];
+            if (!updatedItem) {
+              const candidateItems =
+                updatedList.shoppingListItems?.filter(
+                  (i: ShoppingListItem) =>
+                    !restoredItemIds.has(i.id) &&
+                    i.productId === purchasedItem.productId &&
+                    i.quantity === purchasedItem.quantity &&
+                    (i.receivedQuantity || 0) === 0
+                ) || [];
+              if (candidateItems.length > 0) {
+                updatedItem = candidateItems[0];
+              }
+            }
+
+            if (updatedItem && purchasedItem.purchasedQuantity > 0) {
+              restoredItemIds.add(updatedItem.id);
+              restorePromises.push(
+                api
+                  .patch("/invoice/shopping-lists/update-purchased-quantity", {
+                    itemId: updatedItem.id,
+                    purchasedQuantity: purchasedItem.purchasedQuantity,
+                  })
+                  .then(() => {
+                    console.log(`✅ Item restaurado: ${updatedItem.id} (quantidade: ${purchasedItem.purchasedQuantity})`);
+                  })
+                  .catch((error) => {
+                    console.warn(`❌ Erro ao restaurar status de compra para item ${updatedItem.id}:`, error);
+                    restoredItemIds.delete(updatedItem.id);
+                  })
+              );
+            } else {
+              console.warn("Item comprado não encontrado após edição:", {
+                productId: purchasedItem.productId,
+                quantity: purchasedItem.quantity,
+                purchasedQuantity: purchasedItem.purchasedQuantity,
+                originalId: purchasedItem.originalId,
+              });
             }
           }
 
-          if (updatedItem && purchasedItem.purchasedQuantity > 0) {
-            // Marcar como restaurado para evitar duplicatas
-            restoredItemIds.add(updatedItem.id);
-
-            console.log("Restaurando item comprado:", {
-              originalId: purchasedItem.originalId,
-              originalIndex: purchasedItem.originalIndex,
-              newId: updatedItem.id,
-              productId: purchasedItem.productId,
-              quantity: purchasedItem.quantity,
-              purchasedQuantity: purchasedItem.purchasedQuantity,
-              status: purchasedItem.purchasedStatus,
-            });
-
-            restorePromises.push(
-              api
-                .patch("/invoice/shopping-lists/update-purchased-quantity", {
-                  itemId: updatedItem.id,
-                  purchasedQuantity: purchasedItem.purchasedQuantity,
-                })
-                .then(() => {
-                  console.log(`✅ Item restaurado: ${updatedItem.id} (quantidade: ${purchasedItem.purchasedQuantity})`);
-                })
-                .catch((error) => {
-                  console.warn(`❌ Erro ao restaurar status de compra para item ${updatedItem.id}:`, error);
-                  // Remover do Set em caso de erro para permitir nova tentativa
-                  restoredItemIds.delete(updatedItem.id);
-                })
-            );
-          } else {
-            console.warn("Item comprado não encontrado após edição:", {
-              productId: purchasedItem.productId,
-              quantity: purchasedItem.quantity,
-              purchasedQuantity: purchasedItem.purchasedQuantity,
-              status: purchasedItem.purchasedStatus,
-              originalId: purchasedItem.originalId,
-              availableItems: updatedList.shoppingListItems?.map((i: ShoppingListItem) => ({
-                id: i.id,
-                productId: i.productId,
-                quantity: i.quantity,
-                receivedQuantity: i.receivedQuantity,
-                status: i.status,
-                alreadyRestored: restoredItemIds.has(i.id),
-              })),
-            });
-          }
+          // Aguardar todas as restaurações em paralelo
+          await Promise.all(restorePromises);
+          console.log(`✅ Restauração concluída: ${restorePromises.length} itens processados`);
         }
-
-        // Aguardar todas as restaurações em paralelo
-        await Promise.all(restorePromises);
-        console.log(`✅ Restauração concluída: ${restorePromises.length} itens processados`);
       }
 
       setOpenNotification({
@@ -4191,9 +4162,10 @@ export function ShoppingListsTab() {
                                               name: list.name,
                                               description: list.description,
                                               items: currentItems.map((i) => ({
+                                                itemId: i.id,
                                                 productId: i.productId,
                                                 quantity: i.quantity,
-                                                notes: i.notes,
+                                                notes: i.notes || "",
                                               })),
                                             });
 
@@ -4347,9 +4319,10 @@ export function ShoppingListsTab() {
                                               name: list.name,
                                               description: list.description,
                                               items: currentItems.map((i) => ({
+                                                itemId: i.id,
                                                 productId: i.productId,
                                                 quantity: i.quantity,
-                                                notes: i.notes,
+                                                notes: i.notes || "",
                                               })),
                                             });
 

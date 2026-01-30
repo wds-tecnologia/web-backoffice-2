@@ -10,6 +10,7 @@ Segue resumo dos bugs relatados e perguntas para o time de backend. Quando tiver
 - **2. Histórico de recebimentos:** Backend retorna todos os registros com `id` único; resposta com `all` e `grouped`. **Front:** já usa `id` na deduplicação; no "Receber Todos" já envia **uma** atualização de produto e **uma** criação de histórico por produto com a quantidade recebida naquela ação (`quantityReceived`), alinhado à recomendação do backend.
 - **3. Produtos perdidos:** Backend passou a não deletar mais o `InvoiceProduct`; valida `availableToLose` e não altera `quantityAnalizer` nem `receivedQuantity`. **Front:** fluxo atual (POST com `quantity` ≤ disponível) está correto; após marcar perdido, o front já recarrega a lista de invoices e a invoice selecionada.
 - **4. Histórico mais rápido + bloqueio por tempo:** Backend expõe **um** endpoint por invoice (`GET /invoice/receipt-history/by-invoice/:invoiceId`) e aplica **bloqueio de 10s** (duplicata = mesmo produto + mesma quantidade + 10s), retornando headers `X-Receipt-History-Duplicate: true` e `X-Receipt-History-Dedup-Window-Seconds: 10`. **Front:** modal "Todos os Produtos Recebidos" usa **uma** chamada ao endpoint por invoice (com fallback para N chamadas por produto se falhar); ao criar recebimento ("Receber Todos"), trata 200 + header duplicata como sucesso e exibe mensagem informativa ("Recebimento já registrado").
+- **5. Listas de Compras – PUT:** Backend **já preserva** `receivedQuantity`/status quando o front envia **`itemId`** em cada item existente no PUT. Com `itemId` → UPDATE (só `productId`, `quantity`, `notes`); sem `itemId` → INSERT; itens que não vêm no body → DELETE. Ordem da resposta = ordem do array `items`. **Front:** já envia `itemId` e detecta backend novo; não é necessário mudar nada; o loop de restauração (PATCH em lote) não será executado quando o backend preservar ids e `receivedQuantity`.
 
 ---
 
@@ -88,6 +89,34 @@ Para o modal **"Histórico de Recebimentos"** (Todos os Produtos Recebidos), o f
 
 ---
 
+## 5. Listas de Compras – Transferência de produtos (PUT)
+
+**Pergunta:** No **PUT** em `/invoice/shopping-lists/:id` com body `{ name, description, items }` (onde `items` é array de `{ productId, quantity, notes }` ou com **`itemId`** opcional), o backend **preserva** o `receivedQuantity` (e status) dos itens existentes ou **substitui** tudo e zera?
+
+### Resposta do backend (atual)
+
+O backend **já preserva** quando o front envia **`itemId`** em cada item que já existe na lista. Contrato implementado:
+
+- **Cada item em `items` pode incluir `itemId` (opcional, UUID).**
+- **Com `itemId`** (e o id existir na lista com o mesmo `shoppingListId`): o backend **atualiza** o item existente (apenas `productId`, `quantity`, `notes`); **preserva** `receivedQuantity`, `status`, `purchased`, `purchasedAt`, `receivedAt`, `defectiveQuantity`, `returnedQuantity`, `finalQuantity`, etc.
+- **Sem `itemId`** (ou `itemId` inexistente/não pertencente à lista): o backend **cria** novo item (valores padrão do schema).
+- **Itens da lista que não vêm em `items`:** o backend **remove** esses itens (a lista fica exatamente com os itens do body).
+- **Ordem:** a resposta devolve `shoppingListItems` na **mesma ordem** do array `items` do body.
+
+~~Ou seja: **`receivedQuantity` e status dos itens existentes não são preservados**~~; após o PUT, os itens da lista destino passam a ser “novos” (novos ids, receivedQuantity zerado, status PENDING). Isso pode causar o “piscar” ou perda do status de comprado na tela.
+
+Assim, ao transferir/juntar listas via PUT, os itens existentes da lista destino que forem enviados com `itemId` **não** perdem `receivedQuantity` nem status; não é mais necessário o front compensar com PATCH em lote para esses itens. O front já envia `itemId` e detecta se o backend preservou; com o backend atual, a detecção deve considerar "backend novo" e não executar o loop de restauração.
+
+Contrato detalhado: **`docs/PROMPT_BACKEND_SHOPPING_LISTS_PUT.md`**.
+
+---
+
+- **Payload do PUT** (referência) em `/invoice/shopping-lists/:id`: cada elemento de `items` pode incluir **`itemId`** (opcional). Se **`itemId`** for enviado: **atualizar** o item existente (alterar `productId`, `quantity`, `notes`), **preservando** `receivedQuantity`, `status`, `purchased`. Se **não** tiver `itemId`: criar **novo** item. Hoje, ao dar PUT na lista inteira, **todos** os itens são recriados com `receivedQuantity = 0`. O front só corrige o item que foi **mergeado** (ou o novo item criado) com um PATCH. Os **demais** itens da lista destino (que já tinham “comprado”) ficam com status zerado.
+- **Front hoje (compatível com backend atual e futuro):** Envia **`itemId`** em todos os PUTs de lista quando o item já existe (edição de lista, edição de quantidade, transferência com merge, transferência criando novo item nos itens existentes). Após o PUT, **detecta** se o backend preservou ids: se os ids e `receivedQuantity` dos itens comprados continuam iguais, considera "backend novo" e **não** executa o loop de restauração (PATCH em lote). Caso contrário, executa a restauração como hoje. Usuários não são impactados: com backend antigo o comportamento segue igual; com backend novo, menos chamadas e sem "piscar" de status.
+- **Especificação backend:** fazer o PUT **preservar** itens existentes (ex.: front enviar `itemId` para itens mantidos e backend atualizar em vez de recriar) evita zerar o “comprado” dos outros itens e reduz round-trips. Enquanto isso não for feito, o front mantém o PATCH após o PUT para o item mergeado/novo; foi ajustado para localizar o item mergeado por `productId` + nova quantidade (já que o PUT devolve novos ids).
+
+---
+
 ## Resumo do que o front já ajustou
 
 - **Relatórios (/invoices-management > Relatórios):** Range inicial de datas passou a ser de **3 meses**: do **dia 01** do mês inicial até o **dia atual** do 3º mês.
@@ -96,5 +125,6 @@ Para o modal **"Histórico de Recebimentos"** (Todos os Produtos Recebidos), o f
   - Deduplicação passou a usar o `id` do registro de recebimento (quando existir) para não colapsar entradas distintas.  
   - Modal usa **uma** chamada **`GET /invoice/receipt-history/by-invoice/:invoiceId`** (com fallback para N chamadas por produto se o endpoint falhar).  
   - Ao criar recebimento ("Receber Todos"), se a resposta for 200 com header **`X-Receipt-History-Duplicate: true`**, o front trata como sucesso e exibe mensagem informativa ("Recebimento já registrado" / "Algumas entradas foram tratadas como duplicata...").
+- **Listas de Compras – Transferência e edição:** O front envia **`itemId`** em todos os PUTs de lista quando o item já existe (edição de lista, edição de quantidade, transferência com merge, transferência criando novo item). Após o PUT, **detecta** se o backend preservou ids e `receivedQuantity`; se sim, não executa o loop de restauração (PATCH em lote). Ao juntar com item existente na transferência, envia o valor correto de comprado no PATCH (item destino + transferido); ao criar novo item, identifica o item recém-criado por id. Erro na transferência exibe a mensagem do backend quando existir.
 
-Quando tiverem as respostas ou os ajustes no backend, podemos revisar se falta algum ajuste no front ou em regras de negócio.
+Quando tiverem integrado no front, podemos revisar se falta algum ajuste ou regra de negócio.
