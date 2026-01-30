@@ -20,6 +20,10 @@ export type InvoiceProduct = {
   total: number;
   received: boolean;
   receivedQuantity: number;
+  /** Nome do produto (vindo da relação product ou do PDF) */
+  name?: string;
+  /** Campo temporário: IMEIs vindos do PDF antes de salvar no backend */
+  _imeis?: string[];
 };
 
 interface InvoiceProductsProps {
