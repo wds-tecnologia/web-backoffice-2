@@ -1546,7 +1546,7 @@ export function ShoppingListsTab() {
             throw new Error("Item não encontrado após restaurar outros itens");
           }
         }
-        catch (updateError) {
+      } catch (updateError) {
           console.error("Erro ao atualizar quantidade pedida:", updateError);
           setOpenNotification({
             type: "error",

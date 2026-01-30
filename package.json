@@ -61,6 +61,12 @@
     "yup": "^0.32.11",
     "zustand": "^5.0.4"
   },
+  "overrides": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@mui/system": "^7.1.0",
+    "@nivo/core": "^0.79.0"
+  },
   "scripts": {
     "start": "react-scripts start",
     "build": "CI=false react-scripts build",
