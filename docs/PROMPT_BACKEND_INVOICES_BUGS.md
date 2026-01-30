@@ -9,6 +9,7 @@ Segue resumo dos bugs relatados e perguntas para o time de backend. Quando tiver
 - **1. Invoice Concluída:** Conclusão é automática no backend (`autoCompleteInvoiceIfNeeded`). Backend ajustou a regra para não depender de `received`/`lost`. **Front:** não precisa chamar nenhum endpoint extra; manter fluxo atual.
 - **2. Histórico de recebimentos:** Backend retorna todos os registros com `id` único; resposta com `all` e `grouped`. **Front:** já usa `id` na deduplicação; no "Receber Todos" já envia **uma** atualização de produto e **uma** criação de histórico por produto com a quantidade recebida naquela ação (`quantityReceived`), alinhado à recomendação do backend.
 - **3. Produtos perdidos:** Backend passou a não deletar mais o `InvoiceProduct`; valida `availableToLose` e não altera `quantityAnalizer` nem `receivedQuantity`. **Front:** fluxo atual (POST com `quantity` ≤ disponível) está correto; após marcar perdido, o front já recarrega a lista de invoices e a invoice selecionada.
+- **4. Histórico mais rápido + bloqueio por tempo:** Backend expõe **um** endpoint por invoice (`GET /invoice/receipt-history/by-invoice/:invoiceId`) e aplica **bloqueio de 10s** (duplicata = mesmo produto + mesma quantidade + 10s), retornando headers `X-Receipt-History-Duplicate: true` e `X-Receipt-History-Dedup-Window-Seconds: 10`. **Front:** modal "Todos os Produtos Recebidos" usa **uma** chamada ao endpoint por invoice (com fallback para N chamadas por produto se falhar); ao criar recebimento ("Receber Todos"), trata 200 + header duplicata como sucesso e exibe mensagem informativa ("Recebimento já registrado").
 
 ---
 
@@ -64,11 +65,36 @@ Se a conclusão for automática e não estiver acontecendo nesse caso, precisamo
 
 ---
 
+## 4. Histórico de Recebimentos – mais rápido e deduplicação ajustada
+
+### Endpoint único por invoice (mais rápido)
+
+Para o modal **"Histórico de Recebimentos"** (Todos os Produtos Recebidos), o front usa **uma única chamada** em vez de uma por produto:
+
+- **`GET /invoice/receipt-history/by-invoice/:invoiceId`**
+
+**Resposta:** formato já agrupado por data:
+
+- `grouped`: array por data (date, quantity, entries)
+- `all`: todos os registros de recebimento da invoice
+- `totalReceivedFromInvoice`: soma dos `receivedQuantity` da invoice (ex.: 134)
+- `invoiceNumber`: número da invoice
+
+### Validação/bloqueio e deduplicação no backend
+
+- **Janela de bloqueio:** 10 segundos. Só é considerada duplicata se for **mesmo produto + mesma quantidade + dentro de 10 segundos** (evita double-click sem engolir recebimentos legítimos).
+- **Fallback:** Após 10 segundos, o backend sempre cria novo registro; o front pode reenviar.
+- **Headers quando for duplicata:** `X-Receipt-History-Duplicate: true` e `X-Receipt-History-Dedup-Window-Seconds: 10`. O front trata 200 + esse header como “já registrado” e mostra mensagem informativa (ex.: “Recebimento já registrado”).
+
+---
+
 ## Resumo do que o front já ajustou
 
 - **Relatórios (/invoices-management > Relatórios):** Range inicial de datas passou a ser de **3 meses**: do **dia 01** do mês inicial até o **dia atual** do 3º mês.
 - **Histórico de Recebimentos:**  
-  - No modal "Todos os Produtos Recebidos" foi adicionada a linha **"Quantidade total recebida (invoice): X"** (soma dos `receivedQuantity` da invoice) para confrontar com o histórico.  
-  - Deduplicação passou a usar o `id` do registro de recebimento (quando existir) para não colapsar entradas distintas e evitar contagem menor.
+  - No modal "Todos os Produtos Recebidos" foi adicionada a linha **"Quantidade total recebida (invoice): X"** (soma dos `receivedQuantity` ou `totalReceivedFromInvoice` do backend).  
+  - Deduplicação passou a usar o `id` do registro de recebimento (quando existir) para não colapsar entradas distintas.  
+  - Modal usa **uma** chamada **`GET /invoice/receipt-history/by-invoice/:invoiceId`** (com fallback para N chamadas por produto se o endpoint falhar).  
+  - Ao criar recebimento ("Receber Todos"), se a resposta for 200 com header **`X-Receipt-History-Duplicate: true`**, o front trata como sucesso e exibe mensagem informativa ("Recebimento já registrado" / "Algumas entradas foram tratadas como duplicata...").
 
 Quando tiverem as respostas ou os ajustes no backend, podemos revisar se falta algum ajuste no front ou em regras de negócio.

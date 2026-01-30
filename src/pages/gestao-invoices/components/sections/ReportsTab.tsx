@@ -33,10 +33,10 @@ export function ReportsTab() {
     fetchData();
   }, []);
 
-  // Range inicial: 3 meses — dia 01 do mês inicial até o dia atual do 3º mês
+  // Range inicial: 3 meses — dia 01 do mês inicial até o dia atual
   const getThreeMonthsRange = () => {
     const today = new Date();
-    const start = new Date(today.getFullYear(), today.getMonth() - 2, 1); // dia 1 do mês de 3 meses atrás
+    const start = new Date(today.getFullYear(), today.getMonth() - 3, 1); // dia 1 do mês de 3 meses atrás
     return {
       startDate: start.toISOString().split("T")[0],
       endDate: today.toISOString().split("T")[0],
