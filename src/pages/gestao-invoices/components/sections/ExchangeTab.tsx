@@ -363,7 +363,22 @@ export function ExchangeTab() {
       return;
     }
 
-    if (dataPayment.usd > balance.balance) {
+    const saldoDolar = Number(balance.balance) || 0;
+    if (saldoDolar <= 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Atenção",
+        text: "Não há saldo em dólar. Só é possível pagar quando houver saldo disponível.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
+    if (dataPayment.usd > saldoDolar) {
       Swal.fire({
         icon: "warning",
         title: "Atenção",
@@ -982,8 +997,22 @@ export function ExchangeTab() {
                 return;
               }
 
-              // Validar saldo da média dólar
-              if (!balance || dataCarrierPayment.usd > balance.balance) {
+              // Validar saldo da média dólar: só pode pagar quando houver saldo em dólar
+              const saldoDolar = balance != null ? Number(balance.balance) || 0 : 0;
+              if (!balance || saldoDolar <= 0) {
+                Swal.fire({
+                  icon: "warning",
+                  title: "Atenção",
+                  text: "Não há saldo em dólar. Só é possível pagar quando houver saldo disponível.",
+                  confirmButtonText: "Ok",
+                  buttonsStyling: false,
+                  customClass: {
+                    confirmButton: "bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded font-semibold",
+                  },
+                });
+                return;
+              }
+              if (dataCarrierPayment.usd > saldoDolar) {
                 Swal.fire({
                   icon: "warning",
                   title: "Atenção",
