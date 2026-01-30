@@ -138,6 +138,8 @@ export function InvoiceHistoryReport({
   const [receiptHistory, setReceiptHistory] = useState<{
     grouped: Array<{ date: string; quantity: number; entries: any[] }>;
     all: any[];
+    totalReceivedFromInvoice?: number;
+    invoiceNumber?: string;
   }>({ grouped: [], all: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -1107,6 +1109,7 @@ export function InvoiceHistoryReport({
                               );
 
                               const today = new Date().toISOString();
+                              let anyDuplicate = false;
                               for (const item of productsToReceive) {
                                 const allreceived = item.receivedQuantity + item.quantityAnalizer >= item.quantity;
                                 const quantityReceived = item.quantityAnalizer;
@@ -1120,19 +1123,31 @@ export function InvoiceHistoryReport({
                                   },
                                 });
 
-                                // Registrar no histórico: uma única entrada por produto com a quantidade agregada
-                                // (recomendação backend — evita deduplicação e contagem errada no histórico)
                                 if (quantityReceived > 0) {
                                   try {
-                                    await api.post("/invoice/product/receipt-history", {
+                                    const receiptRes = await api.post("/invoice/product/receipt-history", {
                                       invoiceProductId: item.id,
                                       date: today,
                                       quantity: quantityReceived,
                                     });
+                                    const isDuplicate = receiptRes?.headers?.["x-receipt-history-duplicate"] === "true";
+                                    if (isDuplicate) anyDuplicate = true;
                                   } catch (error) {
                                     console.error("Erro ao registrar histórico de recebimento:", error);
                                   }
                                 }
+                              }
+                              if (anyDuplicate) {
+                                Swal.fire({
+                                  icon: "info",
+                                  title: "Recebimento já registrado",
+                                  text: "Algumas entradas foram tratadas como duplicata (janela de 10 segundos). Aguarde alguns segundos para registrar outro recebimento no mesmo produto.",
+                                  confirmButtonText: "Ok",
+                                  buttonsStyling: false,
+                                  customClass: {
+                                    confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+                                  },
+                                });
                               }
 
                               const { data: updatedInvoices } = await api.get("/invoice/get");
@@ -1190,7 +1205,6 @@ export function InvoiceHistoryReport({
                 <h4 className="font-medium text-blue-700 border-b pb-2 flex-1">Produtos Recebidos</h4>
                 <button
                   onClick={async () => {
-                    // Abrir modal com histórico de todos os produtos recebidos desta invoice
                     setReceiptHistoryModal({
                       open: true,
                       invoiceProductId: null,
@@ -1198,67 +1212,69 @@ export function InvoiceHistoryReport({
                     });
                     setLoadingHistory(true);
                     try {
-                      // Buscar histórico de todos os produtos recebidos
-                      const allHistories: any[] = [];
-                      for (const product of selectedInvoice.products.filter((item) => item.receivedQuantity > 0)) {
-                        try {
-                          const response = await api.get(`/invoice/product/receipt-history/${product.id}`);
-                          if (response.data?.all) {
-                            response.data.all.forEach((entry: any) => {
-                              allHistories.push({
-                                ...entry,
-                                productName: products.find((p) => p.id === product.productId)?.name || "Produto",
-                                invoiceNumber: selectedInvoice.number,
-                                invoiceProductId: product.id,
+                      // 1 request: GET histórico da invoice inteira (mais rápido)
+                      try {
+                        const response = await api.get(
+                          `/invoice/receipt-history/by-invoice/${selectedInvoice.id}`
+                        );
+                        const data = response.data;
+                        const grouped = Array.isArray(data?.grouped) ? data.grouped : [];
+                        const all = Array.isArray(data?.all) ? data.all : [];
+                        setReceiptHistory({
+                          grouped: grouped.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                          all,
+                          totalReceivedFromInvoice: data?.totalReceivedFromInvoice,
+                          invoiceNumber: data?.invoiceNumber,
+                        });
+                      } catch (byInvoiceError) {
+                        // Fallback: N chamadas por produto (comportamento anterior)
+                        const allHistories: any[] = [];
+                        for (const product of selectedInvoice.products.filter((item) => item.receivedQuantity > 0)) {
+                          try {
+                            const resp = await api.get(`/invoice/product/receipt-history/${product.id}`);
+                            if (resp.data?.all) {
+                              resp.data.all.forEach((entry: any) => {
+                                allHistories.push({
+                                  ...entry,
+                                  productName: products.find((p) => p.id === product.productId)?.name || "Produto",
+                                  invoiceNumber: selectedInvoice.number,
+                                  invoiceProductId: product.id,
+                                });
                               });
-                            });
+                            }
+                          } catch (err) {
+                            console.error(`Erro ao buscar histórico do produto ${product.id}:`, err);
                           }
-                        } catch (error) {
-                          console.error(`Erro ao buscar histórico do produto ${product.id}:`, error);
                         }
+                        const seenEntries = new Set<string>();
+                        const deduplicatedHistories: any[] = [];
+                        allHistories.forEach((entry: any) => {
+                          const entryDate = new Date(entry.date);
+                          const dateRounded = new Date(entryDate.getTime() - (entryDate.getTime() % (5 * 60 * 1000)));
+                          const dateKey = dateRounded.toISOString().substring(0, 16);
+                          const uniqueKey = entry.id
+                            ? `${entry.id}`
+                            : `${dateKey}-${entry.invoiceNumber || selectedInvoice.number}-${entry.quantity}-${entry.productName || entry.invoiceProductId}`;
+                          if (!seenEntries.has(uniqueKey)) {
+                            seenEntries.add(uniqueKey);
+                            deduplicatedHistories.push(entry);
+                          }
+                        });
+                        const grouped = deduplicatedHistories.reduce((acc: any, entry: any) => {
+                          const entryDate = new Date(entry.date);
+                          const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
+                          const date = localDate.toISOString().split("T")[0];
+                          if (!acc[date]) acc[date] = { date, quantity: 0, entries: [] };
+                          acc[date].quantity += entry.quantity;
+                          acc[date].entries.push(entry);
+                          return acc;
+                        }, {});
+                        const groupedArray = Object.values(grouped) as Array<{ date: string; quantity: number; entries: any[] }>;
+                        setReceiptHistory({
+                          grouped: groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                          all: allHistories,
+                        });
                       }
-
-                      // Deduplicar apenas entradas realmente duplicadas: usar id do backend quando existir para não colapsar registros distintos
-                      const deduplicatedHistories: any[] = [];
-                      const seenEntries = new Set<string>();
-
-                      allHistories.forEach((entry: any) => {
-                        const entryDate = new Date(entry.date);
-                        const dateRounded = new Date(entryDate.getTime() - (entryDate.getTime() % (5 * 60 * 1000)));
-                        const dateKey = dateRounded.toISOString().substring(0, 16);
-                        // Se o backend retornar id da entrada, usar para não deduplicar registros distintos (evita Qtd errada)
-                        const uniqueKey = entry.id
-                          ? `${entry.id}`
-                          : `${dateKey}-${entry.invoiceNumber || selectedInvoice.number}-${entry.quantity}-${entry.productName || entry.invoiceProductId}`;
-
-                        if (!seenEntries.has(uniqueKey)) {
-                          seenEntries.add(uniqueKey);
-                          deduplicatedHistories.push(entry);
-                        }
-                      });
-
-                      // Agrupar por data (usando timezone local)
-                      const grouped = deduplicatedHistories.reduce((acc: any, entry: any) => {
-                        const entryDate = new Date(entry.date);
-                        // Converter para timezone local (Brasil)
-                        const localDate = new Date(entryDate.getTime() - entryDate.getTimezoneOffset() * 60000);
-                        const date = localDate.toISOString().split("T")[0];
-                        if (!acc[date]) {
-                          acc[date] = { date, quantity: 0, entries: [] };
-                        }
-                        acc[date].quantity += entry.quantity;
-                        acc[date].entries.push(entry);
-                        return acc;
-                      }, {});
-                      const groupedArray = Object.values(grouped) as Array<{
-                        date: string;
-                        quantity: number;
-                        entries: any[];
-                      }>;
-                      setReceiptHistory({
-                        grouped: groupedArray.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
-                        all: allHistories,
-                      });
                     } catch (error) {
                       console.error("Erro ao buscar histórico:", error);
                       setReceiptHistory({ grouped: [], all: [] });
@@ -1608,12 +1624,12 @@ export function InvoiceHistoryReport({
                 <p className="text-sm text-gray-600">
                   Produto: <span className="font-semibold">{receiptHistoryModal.productName}</span>
                 </p>
-                {receiptHistoryModal.productName === "Todos os Produtos Recebidos" && selectedInvoice && (
+                {receiptHistoryModal.productName === "Todos os Produtos Recebidos" && (selectedInvoice || receiptHistory.totalReceivedFromInvoice != null) && (
                   <p className="text-sm font-semibold text-green-700 mt-1">
                     Quantidade total recebida (invoice):{" "}
-                    {selectedInvoice.products
-                      .filter((item) => item.receivedQuantity > 0)
-                      .reduce((sum, item) => sum + item.receivedQuantity, 0)}
+                    {receiptHistory.totalReceivedFromInvoice ?? selectedInvoice?.products
+                      ?.filter((item) => item.receivedQuantity > 0)
+                      .reduce((sum, item) => sum + item.receivedQuantity, 0) ?? 0}
                   </p>
                 )}
               </div>
