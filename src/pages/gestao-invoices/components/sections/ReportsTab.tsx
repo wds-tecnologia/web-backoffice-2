@@ -33,16 +33,20 @@ export function ReportsTab() {
     fetchData();
   }, []);
 
-  // Calcular data de 2 meses atrás
-  const getTwoMonthsAgo = () => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 2);
-    return date.toISOString().split("T")[0];
+  // Range inicial: 3 meses — dia 01 do mês inicial até o dia atual do 3º mês
+  const getThreeMonthsRange = () => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth() - 2, 1); // dia 1 do mês de 3 meses atrás
+    return {
+      startDate: start.toISOString().split("T")[0],
+      endDate: today.toISOString().split("T")[0],
+    };
   };
 
+  const initialRange = getThreeMonthsRange();
   const [filters, setFilters] = useState({
-    startDate: getTwoMonthsAgo(),
-    endDate: new Date().toLocaleDateString("en-CA"),
+    startDate: initialRange.startDate,
+    endDate: initialRange.endDate,
     status: "all",
     supplier: "all",
   });
