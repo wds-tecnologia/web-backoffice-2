@@ -1120,7 +1120,8 @@ export function InvoiceHistoryReport({
                                   },
                                 });
 
-                                // Registrar no histórico de recebimentos
+                                // Registrar no histórico: uma única entrada por produto com a quantidade agregada
+                                // (recomendação backend — evita deduplicação e contagem errada no histórico)
                                 if (quantityReceived > 0) {
                                   try {
                                     await api.post("/invoice/product/receipt-history", {
@@ -1217,18 +1218,18 @@ export function InvoiceHistoryReport({
                         }
                       }
 
-                      // Deduplicar entradas: comparar data/hora (tolerância de 5 minutos), invoice, quantidade e produto
+                      // Deduplicar apenas entradas realmente duplicadas: usar id do backend quando existir para não colapsar registros distintos
                       const deduplicatedHistories: any[] = [];
                       const seenEntries = new Set<string>();
 
                       allHistories.forEach((entry: any) => {
                         const entryDate = new Date(entry.date);
-                        // Criar uma chave única baseada em: data/hora (arredondada para 5 minutos), invoice, quantidade, produto
-                        const dateRounded = new Date(entryDate.getTime() - (entryDate.getTime() % (5 * 60 * 1000))); // Arredondar para 5 minutos
-                        const dateKey = dateRounded.toISOString().substring(0, 16); // YYYY-MM-DDTHH:mm
-                        const uniqueKey = `${dateKey}-${entry.invoiceNumber || selectedInvoice.number}-${
-                          entry.quantity
-                        }-${entry.productName || entry.invoiceProductId}`;
+                        const dateRounded = new Date(entryDate.getTime() - (entryDate.getTime() % (5 * 60 * 1000)));
+                        const dateKey = dateRounded.toISOString().substring(0, 16);
+                        // Se o backend retornar id da entrada, usar para não deduplicar registros distintos (evita Qtd errada)
+                        const uniqueKey = entry.id
+                          ? `${entry.id}`
+                          : `${dateKey}-${entry.invoiceNumber || selectedInvoice.number}-${entry.quantity}-${entry.productName || entry.invoiceProductId}`;
 
                         if (!seenEntries.has(uniqueKey)) {
                           seenEntries.add(uniqueKey);
@@ -1607,6 +1608,14 @@ export function InvoiceHistoryReport({
                 <p className="text-sm text-gray-600">
                   Produto: <span className="font-semibold">{receiptHistoryModal.productName}</span>
                 </p>
+                {receiptHistoryModal.productName === "Todos os Produtos Recebidos" && selectedInvoice && (
+                  <p className="text-sm font-semibold text-green-700 mt-1">
+                    Quantidade total recebida (invoice):{" "}
+                    {selectedInvoice.products
+                      .filter((item) => item.receivedQuantity > 0)
+                      .reduce((sum, item) => sum + item.receivedQuantity, 0)}
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setReceiptHistoryModal({ open: false, invoiceProductId: null, productName: "" })}
