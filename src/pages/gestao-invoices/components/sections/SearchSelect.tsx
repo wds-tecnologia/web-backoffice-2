@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState, KeyboardEvent } from "react";
 import { createRoot } from "react-dom/client";
+import { matchSearchTerms } from "../utils/searchMatch";
 
 interface GenericSearchSelectProps<T> {
   items: T[];
@@ -45,10 +46,11 @@ export function GenericSearchSelect<T>({
   };
 
   const filteredItems = items
-    .filter(item => item !== undefined && item !== null)
-    .filter(item => {
+    .filter((item) => item !== undefined && item !== null)
+    .filter((item) => {
       const str = getSearchString ? getSearchString(item) : getLabelAsString(item);
-      return str.toLowerCase().includes(searchTerm.toLowerCase());
+      const searchableText = typeof str === "string" ? str : String(str ?? "");
+      return matchSearchTerms(searchTerm, searchableText);
     });
 
   const selectedItem = items.find(item => item && getId(item) === value);

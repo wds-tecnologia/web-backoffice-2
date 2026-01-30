@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { matchSearchTerms } from "../utils/searchMatch";
 
 interface Product {
   id: string;
@@ -19,20 +20,11 @@ export function ProductSearchSelect({ products, value, onChange, inline = false 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const filtered = products
-    .filter(p => {
-      const searchLower = searchTerm.toLowerCase().trim();
-      if (!searchLower) return true;
-      
-      // Busca por nome ou código
+    .filter((p) => {
       const nameLower = p.name.toLowerCase();
       const codeLower = p.code?.toLowerCase() || "";
-      const words = nameLower.split(/\s+/);
-      
-      // Verifica se alguma palavra começa com o termo de busca OU se o código corresponde
-      return words.some(word => word.startsWith(searchLower)) || 
-             nameLower.startsWith(searchLower) ||
-             codeLower === searchLower ||
-             codeLower.startsWith(searchLower);
+      const searchableText = `${nameLower} ${codeLower}`.trim();
+      return matchSearchTerms(searchTerm, searchableText);
     })
     .slice(0, 20); // Limita a 20 resultados para melhor performance
 
