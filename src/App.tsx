@@ -13,14 +13,12 @@ function App() {
       sessionStorage.setItem("isReloading", "true");
     });
 
-    // 🔒 Limpa localStorage se não for recarregamento
+    // 🔒 Limpa apenas tokens stricv2 se não for recarregamento (não limpa backoffice: token/user ficam a cargo do authBackoffice para não impedir login)
     const isReloading = sessionStorage.getItem("isReloading");
     if (!isReloading) {
       localStorage.removeItem("@stricv2:token");
       localStorage.removeItem("@stricv2:account");
       localStorage.removeItem("@stricv2:user");
-      localStorage.removeItem("@backoffice:user");
-      localStorage.removeItem("@backoffice:token");
     }
     sessionStorage.setItem("isReloading", "true");
 
