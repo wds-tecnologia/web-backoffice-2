@@ -30,7 +30,11 @@ export type InvoiceProduct = {
 interface InvoiceProductsProps {
   currentInvoice: Invoice;
   setCurrentInvoice: (invoice: any) => void;
-  onInvoiceSaved?: () => void; // 👈 Adicione isso
+  onInvoiceSaved?: () => void;
+  /** Quando múltiplas invoices vêm do modal (Enviar para a tela), preencher drafts e abas */
+  onAddDraftInvoices?: (invoices: Invoice[]) => void;
+  /** Após salvar uma invoice que era draft (aba), remover da lista de drafts e ir para a próxima */
+  onDraftSaved?: () => void;
   [key: string]: any;
 }
 type CarrierEnum = "percentage" | "perKg" | "perUnit";
@@ -435,10 +439,17 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         }
       }
 
-      // Limpar dados do PDF após salvar
       setPdfData(null);
 
-      // Buscar o próximo número de invoice automaticamente
+      // Se estamos em modo multi-draft (abas), avisar o pai para remover esta draft e mostrar a próxima; não resetar o form
+      if (props.onDraftSaved) {
+        props.onDraftSaved();
+        window.dispatchEvent(new Event("invoiceUpdated"));
+        if (props.onInvoiceSaved) props.onInvoiceSaved();
+        return;
+      }
+
+      // Modo single: buscar próximo número e resetar o formulário
       try {
         const nextNumberResponse = await api.get("/invoice/next-number");
         const nextNumber = nextNumberResponse.data?.nextNumber || `INV-${Date.now()}`;
@@ -465,7 +476,6 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       } catch (error) {
         console.error("Erro ao buscar próximo número:", error);
-        // Em caso de erro, usar número baseado em timestamp
         setCurrentInvoice({
           id: null,
           number: `INV-${Date.now()}`,
@@ -488,13 +498,8 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       }
 
-      // Disparar evento global para atualizar outras abas
-      console.log("🔄 [INVOICE PRODUCTS] Disparando evento invoiceUpdated...");
       window.dispatchEvent(new Event("invoiceUpdated"));
-
-      if (props.onInvoiceSaved) {
-        props.onInvoiceSaved();
-      }
+      if (props.onInvoiceSaved) props.onInvoiceSaved();
     }, "saveInvoice").catch((error: any) => {
       console.error("Erro ao salvar a invoice:", error);
 
@@ -586,6 +591,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         onAllSaved={() => {
           window.dispatchEvent(new Event("invoiceUpdated"));
           props.onInvoiceSaved?.();
+        }}
+        onSendToScreen={(invoices) => {
+          props.onAddDraftInvoices?.(invoices);
+          setShowTabsModal(false);
+          setPdfDataList([]);
         }}
       />
 
@@ -873,7 +883,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
               {currentInvoice.products.map((product, index) => (
                 <tr key={index}>
                   <td className="px-4 py-2 text-sm text-gray-800">
-                    {products.find((item) => item.id === product.id)?.name}
+                    {product.name || products.find((item) => item.id === product.id)?.name || "-"}
                   </td>
                   <td className="px-4 py-2 text-sm text-right">{product.quantity}</td>
                   <td className="px-4 py-2 text-sm text-right">

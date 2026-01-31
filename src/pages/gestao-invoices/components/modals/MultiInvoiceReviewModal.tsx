@@ -1,13 +1,61 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, Plus } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, Plus, LayoutGrid } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
 import { useActionLoading } from "../../context/ActionLoadingContext";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
 import type { PdfData, PdfProduct } from "./ReviewPdfModal";
+import type { Invoice } from "../types/invoice";
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
+
+/** Converte PdfData[] (editedDataList) para Invoice[] para enviar como drafts à tela */
+function pdfDataListToInvoices(
+  editedDataList: PdfData[],
+  defaultInvoice: MultiInvoiceReviewModalProps["defaultInvoice"]
+): Invoice[] {
+  return editedDataList.map((data) => {
+    const products = (data.products || []).map((p) => ({
+      id: p.validation?.productId || p.sku,
+      invoiceId: "",
+      productId: p.validation?.productId || p.sku,
+      quantity: p.quantity,
+      value: p.rate,
+      price: p.rate,
+      weight: 0,
+      total: p.amount,
+      received: false,
+      receivedQuantity: 0,
+      name: p.name,
+      _imeis: p.imeis || [],
+    }));
+    const taxaSpEs =
+      defaultInvoice.taxaSpEs == null || defaultInvoice.taxaSpEs === ""
+        ? "0"
+        : String(defaultInvoice.taxaSpEs).trim();
+    return {
+      id: null,
+      number: data.invoiceData?.number ?? "",
+      date: data.invoiceData?.date ?? new Date().toLocaleDateString("en-CA"),
+      supplierId: defaultInvoice.supplierId ?? "",
+      products,
+      carrierId: defaultInvoice.carrierId ?? "",
+      carrier2Id: defaultInvoice.carrier2Id ?? "",
+      taxaSpEs,
+      amountTaxcarrier: 0,
+      amountTaxcarrier2: 0,
+      amountTaxSpEs: 0,
+      subAmount: 0,
+      overallValue: 0,
+      paid: false,
+      paidDate: null,
+      paidDollarRate: null,
+      completed: false,
+      completedDate: null,
+    };
+  });
+}
 
 interface MultiInvoiceReviewModalProps {
   isOpen: boolean;
@@ -24,6 +72,8 @@ interface MultiInvoiceReviewModalProps {
   };
   /** Chamado quando todas as invoices das abas forem salvas e o usuário fechar */
   onAllSaved?: () => void;
+  /** Enviar todas as invoices (revisadas) para a tela como drafts em abas, sem salvar no backend */
+  onSendToScreen?: (invoices: Invoice[]) => void;
 }
 
 export function MultiInvoiceReviewModal({
@@ -32,6 +82,7 @@ export function MultiInvoiceReviewModal({
   pdfDataList,
   defaultInvoice,
   onAllSaved,
+  onSendToScreen,
 }: MultiInvoiceReviewModalProps) {
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
@@ -336,6 +387,20 @@ export function MultiInvoiceReviewModal({
     onClose();
   };
 
+  const handleSendToScreen = () => {
+    if (!defaultInvoice.supplierId) {
+      setOpenNotification({
+        type: "warning",
+        title: "Atenção",
+        notification: "Selecione um fornecedor na tela principal antes de enviar para a tela.",
+      });
+      return;
+    }
+    const invoices = pdfDataListToInvoices(editedDataList, defaultInvoice);
+    onSendToScreen?.(invoices);
+    onClose();
+  };
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "USD" }).format(value);
 
@@ -632,15 +697,25 @@ export function MultiInvoiceReviewModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-between items-center gap-4 p-6 border-t bg-gray-50">
+        <div className="flex justify-between items-center gap-4 p-6 border-t bg-gray-50 flex-wrap">
           <div className="text-sm text-gray-600">
             {allSaved ? (
               <span className="text-green-700 font-medium">Todas as invoices foram salvas. Você pode fechar.</span>
             ) : (
-              <span>Salve todas as invoices para poder fechar o modal.</span>
+              <span>Salve uma a uma ou envie todas para a tela como rascunhos (abas) e salve depois.</span>
             )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
+            {onSendToScreen && (
+              <button
+                type="button"
+                onClick={handleSendToScreen}
+                className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <LayoutGrid size={18} />
+                Enviar para a tela
+              </button>
+            )}
             {!savedIndices.has(activeTabIndex) && (
               <button
                 type="button"
