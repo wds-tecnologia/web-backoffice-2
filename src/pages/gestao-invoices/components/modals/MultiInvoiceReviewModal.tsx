@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, LayoutGrid, Eye } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, Link2, LayoutGrid, Eye } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -136,8 +136,9 @@ export function MultiInvoiceReviewModal({
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [editedDataList, setEditedDataList] = useState<PdfData[]>([]);
-  const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [imeiPopupIndex, setImeiPopupIndex] = useState<number | null>(null);
   const [linkPopupIndex, setLinkPopupIndex] = useState<number | null>(null);
+  const [pendingLinkProductId, setPendingLinkProductId] = useState<string>("");
   const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberExistsByIndex, setNumberExistsByIndex] = useState<Record<number, boolean>>({});
@@ -211,7 +212,6 @@ export function MultiInvoiceReviewModal({
       setEditedDataList(pdfDataList.map((p) => ({ ...p })));
       setSavedIndices(new Set());
       setActiveTabIndex(0);
-      setExpandedProducts(new Set());
       setNumberExistsInDb(false);
       setNumberExistsByIndex({});
     }
@@ -263,22 +263,6 @@ export function MultiInvoiceReviewModal({
       next[index] = data;
       return next;
     });
-  };
-
-  const toggleProductExpand = (productIndex: number) => {
-    setExpandedProducts((prev) => {
-      const next = new Set(prev);
-      if (next.has(productIndex)) next.delete(productIndex);
-      else next.add(productIndex);
-      return next;
-    });
-  };
-
-  const handleProductEdit = (productIndex: number, field: keyof PdfProduct, value: any) => {
-    if (!currentData) return;
-    const newProducts = [...currentData.products];
-    newProducts[productIndex] = { ...newProducts[productIndex], [field]: value };
-    setEditedDataAt(activeTabIndex, { ...currentData, products: newProducts });
   };
 
   // Salvar alias no backend para reconhecimento automático futuro
@@ -504,7 +488,6 @@ export function MultiInvoiceReviewModal({
                 type="button"
                 onClick={() => {
                   setActiveTabIndex(index);
-                  setExpandedProducts(new Set());
                 }}
                 className={`px-4 py-2 rounded-t-lg border-b-2 font-medium transition-colors flex items-center gap-1.5 ${
                   numberExists
@@ -614,7 +597,6 @@ export function MultiInvoiceReviewModal({
                 </h3>
                 <div className="space-y-3">
                   {currentData.products.map((product, productIndex) => {
-                    const isExpanded = expandedProducts.has(productIndex);
                     const hasDivergences = product.validation.divergences.length > 0;
                     const isNew = !product.validation.exists;
                     const isLinkPopupOpen = linkPopupIndex === productIndex;
@@ -629,10 +611,7 @@ export function MultiInvoiceReviewModal({
                         {/* Product Header */}
                         <div className="p-4">
                           <div className="flex items-center justify-between">
-                            <div 
-                              className="flex items-center gap-3 flex-1 cursor-pointer hover:bg-opacity-80"
-                              onClick={() => toggleProductExpand(productIndex)}
-                            >
+                            <div className="flex items-center gap-3 flex-1">
                               <div className="flex-shrink-0">
                                 {product.validation.exists ? (
                                   <Check size={20} className="text-green-600" />
@@ -651,13 +630,77 @@ export function MultiInvoiceReviewModal({
                                   {product.imeis.length > 0 && (
                                     <>
                                       <span>|</span>
-                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                        <Eye size={12} />
-                                        {product.imeis.length} IMEI{product.imeis.length !== 1 ? 's' : ''}
-                                        {product.imeis.length !== product.quantity && (
-                                          <AlertTriangle size={12} className="text-red-600 ml-1" />
+                                      <div className="relative">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setImeiPopupIndex(imeiPopupIndex === productIndex ? null : productIndex);
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors cursor-pointer"
+                                        >
+                                          <Eye size={12} />
+                                          {product.imeis.length} IMEI{product.imeis.length !== 1 ? 's' : ''}
+                                          {product.imeis.length !== product.quantity && (
+                                            <AlertTriangle size={12} className="text-red-600 ml-1" />
+                                          )}
+                                        </button>
+                                        
+                                        {/* Popup flutuante para IMEIs */}
+                                        {imeiPopupIndex === productIndex && (
+                                          <>
+                                            <div 
+                                              className="fixed inset-0 z-40"
+                                              onClick={() => setImeiPopupIndex(null)}
+                                            />
+                                            <div className="absolute left-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                                              <div className="flex items-center justify-between mb-3">
+                                                <div className="font-semibold text-blue-900 flex items-center gap-2">
+                                                  <Eye size={18} />
+                                                  IMEIs/Seriais ({product.imeis.length})
+                                                </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(product.imeis.join("\n"));
+                                                  }}
+                                                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                                                >
+                                                  Copiar
+                                                </button>
+                                              </div>
+                                              
+                                              {product.imeis.length !== product.quantity && (
+                                                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
+                                                  <AlertTriangle size={14} />
+                                                  Quantidade diferente: {product.imeis.length} IMEIs para {product.quantity} produtos
+                                                </div>
+                                              )}
+                                              
+                                              <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
+                                                <div className="flex flex-wrap gap-2">
+                                                  {product.imeis.map((imei, imeiIdx) => (
+                                                    <span
+                                                      key={imeiIdx}
+                                                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                                    >
+                                                      {imei}
+                                                    </span>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                              
+                                              <button
+                                                type="button"
+                                                onClick={() => setImeiPopupIndex(null)}
+                                                className="mt-3 w-full px-3 py-1.5 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+                                              >
+                                                OK
+                                              </button>
+                                            </div>
+                                          </>
                                         )}
-                                      </span>
+                                      </div>
                                     </>
                                   )}
                                 </div>
@@ -670,6 +713,7 @@ export function MultiInvoiceReviewModal({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  setPendingLinkProductId(product.validation.productId || "");
                                   setLinkPopupIndex(isLinkPopupOpen ? null : productIndex);
                                 }}
                                 className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${
@@ -692,7 +736,10 @@ export function MultiInvoiceReviewModal({
                                   {/* Overlay para fechar o popup */}
                                   <div 
                                     className="fixed inset-0 z-40"
-                                    onClick={() => setLinkPopupIndex(null)}
+                                    onClick={() => {
+                                      setLinkPopupIndex(null);
+                                      setPendingLinkProductId("");
+                                    }}
                                   />
                                   <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
                                     <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
@@ -700,138 +747,46 @@ export function MultiInvoiceReviewModal({
                                       Vincular Produto
                                     </div>
                                     
-                                    {/* Mostrar nome original do PDF se houver */}
-                                    {(product.originalPdfName || product.validation.matchedByAlias) && (
-                                      <div className="mb-3 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
-                                        <span className="text-gray-500">Nome no PDF:</span>
-                                        <div className="font-mono text-gray-700 mt-1 break-all">
-                                          {product.originalPdfName || product.name}
-                                        </div>
-                                      </div>
-                                    )}
-                                    
                                     {product.validation.matchedByAlias && (
                                       <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center gap-2">
                                         <Check size={14} />
-                                        Reconhecido automaticamente por vínculo salvo
+                                        Reconhecido automaticamente
                                       </div>
                                     )}
                                     
                                     <p className="text-sm text-gray-600 mb-3">
-                                      {product.validation.productId 
-                                        ? "Alterar vínculo para outro produto:" 
-                                        : "Selecione um produto do banco para vincular:"}
+                                      Selecione um produto do banco:
                                     </p>
                                     <ProductSearchSelect
                                       products={productsFromDb}
-                                      value={product.validation.productId || ""}
-                                      onChange={(id) => {
-                                        handleLinkProduct(productIndex, id);
-                                        setLinkPopupIndex(null);
-                                      }}
+                                      value={pendingLinkProductId}
+                                      onChange={(id) => setPendingLinkProductId(id)}
                                       inline
                                     />
-                                    {product.validation.productId && !product.validation.matchedByAlias && (
-                                      <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
-                                        <Check size={14} />
-                                        Produto vinculado! Será reconhecido automaticamente nas próximas importações.
-                                      </div>
-                                    )}
                                     <button
                                       type="button"
-                                      onClick={() => setLinkPopupIndex(null)}
-                                      className="mt-3 w-full px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                                      onClick={() => {
+                                        if (pendingLinkProductId) {
+                                          handleLinkProduct(productIndex, pendingLinkProductId);
+                                        }
+                                        setLinkPopupIndex(null);
+                                        setPendingLinkProductId("");
+                                      }}
+                                      disabled={!pendingLinkProductId}
+                                      className={`mt-3 w-full px-3 py-1.5 rounded-md text-sm ${
+                                        pendingLinkProductId
+                                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                                          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                                      }`}
                                     >
-                                      Fechar
+                                      OK
                                     </button>
                                   </div>
                                 </>
                               )}
-                              
-                              <button
-                                type="button"
-                                onClick={() => toggleProductExpand(productIndex)}
-                                className="p-1.5 rounded hover:bg-gray-200"
-                              >
-                                {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                              </button>
                             </div>
                           </div>
                         </div>
-                        
-                        {isExpanded && (
-                          <div className="border-t bg-white p-4 space-y-4">
-                            {/* Editable Fields */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                                <input
-                                  type="text"
-                                  value={product.name}
-                                  onChange={(e) => handleProductEdit(productIndex, "name", e.target.value)}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
-                                <input
-                                  type="number"
-                                  value={product.quantity}
-                                  onChange={(e) => handleProductEdit(productIndex, "quantity", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={product.rate}
-                                  onChange={(e) => handleProductEdit(productIndex, "rate", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                            </div>
-
-                            {/* IMEIs */}
-                            {product.imeis.length > 0 && (
-                              <div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <label className="block text-sm font-medium text-gray-700">
-                                    IMEIs/Seriais ({product.imeis.length})
-                                    {product.imeis.length !== product.quantity && (
-                                      <span className="ml-2 text-xs text-red-600 font-semibold">
-                                        ⚠ Qtd diferente de {product.quantity}
-                                      </span>
-                                    )}
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const list = product.imeis.join("\n");
-                                      navigator.clipboard.writeText(list);
-                                    }}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    Copiar
-                                  </button>
-                                </div>
-                                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
-                                  <div className="flex flex-wrap gap-2">
-                                    {product.imeis.map((imei, imeiIndex) => (
-                                      <span
-                                        key={imeiIndex}
-                                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                      >
-                                        {imei}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })}
