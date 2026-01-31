@@ -317,7 +317,13 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
 
       // Converter data para o formato correto (YYYY-MM-DD) se necessário
       let formattedDate = editedData.invoiceData.date;
-      if (formattedDate) {
+      let dateFromPdf = false;
+      
+      // Debug: verificar o que o backend retornou
+      console.log(`[Import PDF] Invoice ${editedData.invoiceData?.number} - Data do backend:`, editedData.invoiceData?.date);
+      
+      if (formattedDate && formattedDate.trim() !== "") {
+        dateFromPdf = true;
         // Se a data estiver em formato DD/MM/YYYY ou MM/DD/YYYY, converter para YYYY-MM-DD
         if (formattedDate.includes('/')) {
           const parts = formattedDate.split('/');
@@ -339,8 +345,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           // Verificar se já está no formato correto YYYY-MM-DD
           const parts = formattedDate.split('-');
           if (parts[0]?.length === 4) {
-            // Já está em YYYY-MM-DD, usar como está
-            formattedDate = formattedDate;
+            // Já está em YYYY-MM-DD, manter como está
           } else if (parts[2]?.length === 4) {
             // DD-MM-YYYY, converter
             formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
@@ -351,11 +356,17 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         const testDate = new Date(formattedDate);
         if (isNaN(testDate.getTime())) {
           // Data inválida, usar data atual
+          console.warn(`[Import PDF] Data inválida após conversão: ${formattedDate}, usando data atual`);
           formattedDate = new Date().toLocaleDateString("en-CA");
+          dateFromPdf = false;
+        } else {
+          console.log(`[Import PDF] Data convertida com sucesso: ${formattedDate}`);
         }
       } else {
         // Se não tem data, usar data atual
+        console.warn(`[Import PDF] Backend não retornou data para invoice ${editedData.invoiceData?.number}, usando data atual`);
         formattedDate = new Date().toLocaleDateString("en-CA");
+        dateFromPdf = false;
       }
 
       // Preencher número e data da invoice automaticamente
@@ -363,7 +374,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         ...currentInvoice,
         number: editedData.invoiceData.number,
         date: formattedDate,
-        _isDateFromPdf: true, // Marca que a data veio do PDF
+        _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
       });
 
       // Adicionar produtos do PDF ao currentInvoice
@@ -385,7 +396,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         number: editedData.invoiceData.number,
         date: formattedDate,
         products: [...currentInvoice.products, ...newProducts],
-        _isDateFromPdf: true, // Marca que a data veio do PDF
+        _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
       });
 
       if (pdfDataQueue.length > 0) {

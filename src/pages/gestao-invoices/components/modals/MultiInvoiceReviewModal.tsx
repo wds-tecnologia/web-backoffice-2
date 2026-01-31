@@ -37,7 +37,13 @@ function pdfDataListToInvoices(
     
     // Converter data para o formato correto (YYYY-MM-DD)
     let formattedDate = data.invoiceData?.date;
-    if (formattedDate) {
+    let dateFromPdf = false;
+    
+    // Debug: verificar o que o backend retornou
+    console.log(`[Import PDF] Invoice ${data.invoiceData?.number} - Data do backend:`, data.invoiceData?.date);
+    
+    if (formattedDate && formattedDate.trim() !== "") {
+      dateFromPdf = true;
       // Se a data estiver em formato DD/MM/YYYY ou MM/DD/YYYY, converter para YYYY-MM-DD
       if (formattedDate.includes('/')) {
         const parts = formattedDate.split('/');
@@ -64,10 +70,16 @@ function pdfDataListToInvoices(
       // Validar se a data é válida
       const testDate = new Date(formattedDate);
       if (isNaN(testDate.getTime())) {
+        console.warn(`[Import PDF] Data inválida após conversão: ${formattedDate}, usando data atual`);
         formattedDate = new Date().toLocaleDateString("en-CA");
+        dateFromPdf = false;
+      } else {
+        console.log(`[Import PDF] Data convertida com sucesso: ${formattedDate}`);
       }
     } else {
+      console.warn(`[Import PDF] Backend não retornou data para invoice ${data.invoiceData?.number}, usando data atual`);
       formattedDate = new Date().toLocaleDateString("en-CA");
+      dateFromPdf = false;
     }
     
     return {
@@ -89,7 +101,7 @@ function pdfDataListToInvoices(
       paidDollarRate: null,
       completed: false,
       completedDate: null,
-      _isDateFromPdf: true, // Marca que a data veio do PDF
+      _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
     };
   });
 }
