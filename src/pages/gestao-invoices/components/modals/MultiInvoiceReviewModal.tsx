@@ -44,6 +44,9 @@ export function MultiInvoiceReviewModal({
   const { setOpenNotification } = useNotification();
   const { executeAction } = useActionLoading();
 
+  const currentData = editedDataList[activeTabIndex];
+  const allSaved = pdfDataList.length > 0 && savedIndices.size === pdfDataList.length;
+
   useEffect(() => {
     if (!isOpen) return;
     api
@@ -103,9 +106,6 @@ export function MultiInvoiceReviewModal({
       setNumberExistsInDb(false);
     }
   }, [isOpen, pdfDataList]);
-
-  const currentData = editedDataList[activeTabIndex];
-  const allSaved = pdfDataList.length > 0 && savedIndices.size === pdfDataList.length;
 
   const setEditedDataAt = (index: number, data: PdfData) => {
     setEditedDataList((prev) => {
