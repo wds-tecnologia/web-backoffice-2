@@ -6,9 +6,10 @@ import { Invoice } from "../types/invoice";
 interface NewInvoiceFormProps {
   currentInvoice: Invoice;
   setCurrentInvoice: (invoice: Invoice) => void;
+  isDateFromPdf?: boolean;
 }
 
-export function NewInvoiceForm({ currentInvoice, setCurrentInvoice }: NewInvoiceFormProps) {
+export function NewInvoiceForm({ currentInvoice, setCurrentInvoice, isDateFromPdf = false }: NewInvoiceFormProps) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -100,13 +101,20 @@ export function NewInvoiceForm({ currentInvoice, setCurrentInvoice }: NewInvoice
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Data
+          {isDateFromPdf && <span className="ml-2 text-xs text-blue-600">(Da invoice importada)</span>}
+        </label>
         <input
           type="date"
           name="date"
           value={currentInvoice.date}
           onChange={handleInputChange}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isDateFromPdf}
+          className={`w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 ${
+            isDateFromPdf ? 'bg-gray-100 cursor-not-allowed' : ''
+          }`}
+          title={isDateFromPdf ? 'Data bloqueada - vem da invoice importada' : ''}
         />
       </div>
 

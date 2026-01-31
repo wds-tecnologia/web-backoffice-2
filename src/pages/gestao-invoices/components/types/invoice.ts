@@ -22,4 +22,7 @@ import { InvoiceProduct } from "../sections/InvoiceProducts";
     paidDollarRate: number | null;
     completed: boolean;
     completedDate: string | null;
+    
+    /** Flag para indicar que a data veio do PDF importado e deve ficar bloqueada */
+    _isDateFromPdf?: boolean;
   }

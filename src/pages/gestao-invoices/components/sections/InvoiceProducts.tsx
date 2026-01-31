@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Loader2, Plus, Save, Trash2, X, Upload } from "lucide-react";
+import { Box, Loader2, Plus, Save, Trash2, X, Upload, Edit2 } from "lucide-react";
 import { api } from "../../../../services/api";
 import { Invoice } from "../types/invoice";
 import Swal from "sweetalert2";
@@ -68,6 +68,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     total: "",
     price: "",
   });
+  const [editingProductIndex, setEditingProductIndex] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { setOpenNotification } = useNotification();
   const { isLoading: isActionLoading, executeAction } = useActionLoading();
@@ -112,6 +113,75 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     const newProducts = [...currentInvoice.products];
     newProducts.splice(index, 1);
     setCurrentInvoice({ ...currentInvoice, products: newProducts });
+  };
+
+  const editProduct = (index: number) => {
+    const product = currentInvoice.products[index];
+    const productData = products.find((p) => p.id === product.id);
+    
+    setProductForm({
+      productId: product.id,
+      quantity: product.quantity.toString(),
+      value: product.value.toString(),
+      weight: product.weight.toString(),
+      total: product.total.toString(),
+      price: product.price?.toString() || product.value.toString(),
+    });
+    setValorRaw(product.value.toString());
+    setEditingProductIndex(index);
+    setShowProductForm(true);
+  };
+
+  const updateProduct = () => {
+    if (editingProductIndex === null) return;
+    
+    const product = products.find((p) => p.id === productForm.productId);
+    if (!product) return;
+
+    const quantity = parseFloat(productForm.quantity);
+    const value = parseFloat(priceData);
+    const weight = parseFloat(weightData) || product.weight || 0;
+    const total = parseFloat(productForm.total);
+
+    if (!productForm.productId || isNaN(quantity) || isNaN(value) || isNaN(total)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Atenção",
+        text: "Preencha todos os campos obrigatórios do produto!",
+        confirmButtonColor: "#3085d6",
+      });
+      return;
+    }
+
+    const updatedProduct = {
+      ...currentInvoice.products[editingProductIndex],
+      id: productForm.productId,
+      name: product.name,
+      quantity,
+      value,
+      weight,
+      total,
+      price: value,
+    };
+
+    const newProducts = [...currentInvoice.products];
+    newProducts[editingProductIndex] = updatedProduct;
+    
+    setCurrentInvoice({
+      ...currentInvoice,
+      products: newProducts,
+    });
+
+    setProductForm({
+      productId: "",
+      price: "",
+      quantity: "",
+      value: "",
+      weight: "",
+      total: "",
+    });
+    setEditingProductIndex(null);
+    setShowProductForm(false);
   };
 
   const subTotal = currentInvoice.products.reduce((acc, item) => acc + Number(item.total), 0);
@@ -171,6 +241,12 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const addProduct = () => {
     // Proteção imediata contra cliques duplos
     if (isActionLoading) {
+      return;
+    }
+
+    // Se estamos editando, chama updateProduct ao invés de adicionar
+    if (editingProductIndex !== null) {
+      updateProduct();
       return;
     }
 
@@ -244,6 +320,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         ...currentInvoice,
         number: editedData.invoiceData.number,
         date: editedData.invoiceData.date,
+        _isDateFromPdf: true, // Marca que a data veio do PDF
       });
 
       // Adicionar produtos do PDF ao currentInvoice
@@ -265,6 +342,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         number: editedData.invoiceData.number,
         date: editedData.invoiceData.date,
         products: [...currentInvoice.products, ...newProducts],
+        _isDateFromPdf: true, // Marca que a data veio do PDF
       });
 
       if (pdfDataQueue.length > 0) {
@@ -340,6 +418,29 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           },
         });
         return;
+      }
+
+      // Validar se o número da invoice já existe
+      try {
+        const checkResponse = await api.get("/invoice/exists-by-number", {
+          params: { number: currentInvoice.number.trim() }
+        });
+        if (checkResponse.data?.exists) {
+          Swal.fire({
+            icon: "error",
+            title: "Número Duplicado",
+            text: `Já existe uma invoice com o número "${currentInvoice.number}". Por favor, use um número diferente.`,
+            confirmButtonText: "Ok",
+            buttonsStyling: false,
+            customClass: {
+              confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+            },
+          });
+          return;
+        }
+      } catch (checkErr) {
+        // Se o endpoint não existir, continua sem validação
+        console.warn("Endpoint de validação de número não disponível, continuando...");
       }
 
       const now = new Date();
@@ -590,7 +691,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
 
       {showProductForm && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
-          <h3 className="font-medium mb-3 text-blue-700 border-b pb-2">Adicionar Produto</h3>
+          <h3 className="font-medium mb-3 text-blue-700 border-b pb-2">
+            {editingProductIndex !== null ? "Editar Produto" : "Adicionar Produto"}
+          </h3>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
             <div className="relative md:col-span-2">
               {/* <label className="block text-sm font-medium text-gray-700 mb-1">Produto</label> */}
@@ -818,7 +921,18 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
             </div>
             <div className="flex items-end">
               <button
-                onClick={() => setShowProductForm(false)}
+                onClick={() => {
+                  setShowProductForm(false);
+                  setEditingProductIndex(null);
+                  setProductForm({
+                    productId: "",
+                    price: "",
+                    quantity: "",
+                    value: "",
+                    weight: "",
+                    total: "",
+                  });
+                }}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 px-4 rounded mr-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isActionLoading}
               >
@@ -831,7 +945,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                 disabled={isActionLoading}
               >
                 <Plus className="mr-1 inline" size={16} />
-                Adicionar
+                {editingProductIndex !== null ? "Salvar Alterações" : "Adicionar"}
               </button>
             </div>
           </div>
@@ -865,7 +979,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total ($)
                 </th>
-                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -883,13 +997,24 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                     {product.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-2 text-center">
-                    <button
-                      onClick={() => deleteProduct(index)}
-                      className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={isActionLoading}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => editProduct(index)}
+                        className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isActionLoading}
+                        title="Editar produto"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteProduct(index)}
+                        className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isActionLoading}
+                        title="Excluir produto"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
