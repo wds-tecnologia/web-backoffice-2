@@ -344,11 +344,13 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
 
       const now = new Date();
       const time = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
-      const dateWithTime = new Date(`${currentInvoice.date}T${time}`);
+      const dateStr = currentInvoice.date || now.toLocaleDateString("en-CA");
+      const dateWithTime = new Date(`${dateStr}T${time}`);
+      const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
       const response = await api.post("/invoice/create", {
         ...currentInvoice,
-        date: dateWithTime,
+        date: dateForApi,
         taxaSpEs:
           currentInvoice.taxaSpEs == null || currentInvoice.taxaSpEs === ""
             ? "0"
