@@ -12,9 +12,9 @@ O **Vercel Firewall / Attack Challenge Mode** (ponto de verificação de seguran
 
 ## O que foi feito no projeto
 
-1. **`vercel.json`** na raiz do projeto:
-   - Headers explícitos para `/manifest.json`: `Cache-Control`, `Access-Control-Allow-Origin: *`, `Content-Type: application/manifest+json`.
-   - Isso garante que o manifesto seja tratado como recurso público e com tipo correto.
+1. **Manifest servido por função serverless** (contorna 403 em arquivo estático):
+   - **`api/manifest.js`**: função serverless que retorna o JSON do manifest com headers corretos (`Content-Type: application/manifest+json`, `Access-Control-Allow-Origin: *`, `Cache-Control`).
+   - **`vercel.json`**: `rewrites` com `source: "/manifest.json"` e `destination: "/api/manifest"`. Assim, quem pede `/manifest.json` recebe a resposta da função em vez do arquivo estático, evitando o bloqueio do Firewall/Checkpoint da Vercel.
 
 2. **React Router** em `src/index.js`:
    - Flags de futuro `v7_startTransition` e `v7_relativeSplatPath` para eliminar os avisos de depreciação do React Router no console.
