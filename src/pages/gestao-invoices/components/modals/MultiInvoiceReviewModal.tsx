@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, Plus } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -41,6 +41,8 @@ export function MultiInvoiceReviewModal({
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [selectedProductIdToAdd, setSelectedProductIdToAdd] = useState("");
+  const [quantityToAdd, setQuantityToAdd] = useState("");
   const { setOpenNotification } = useNotification();
   const { executeAction } = useActionLoading();
 
@@ -148,6 +150,56 @@ export function MultiInvoiceReviewModal({
       },
     };
     setEditedDataAt(activeTabIndex, { ...currentData, products: newProducts });
+  };
+
+  const handleAddProductFromDb = () => {
+    const productFromDb = productsFromDb.find((p) => p.id === selectedProductIdToAdd);
+    const qty = Number(quantityToAdd);
+    if (!productFromDb || !currentData || !qty || qty <= 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Campos obrigatórios",
+        text: "Selecione um produto e informe uma quantidade maior que zero.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+    const rate = productFromDb.priceweightAverage ?? 0;
+    const amount = qty * rate;
+    const newProduct: PdfProduct = {
+      sku: productFromDb.id,
+      name: productFromDb.name,
+      description: "",
+      quantity: qty,
+      rate,
+      amount,
+      imeis: [],
+      validation: {
+        exists: true,
+        productId: productFromDb.id,
+        divergences: [],
+      },
+    };
+    const newProducts = [...currentData.products, newProduct];
+    const existingCount = newProducts.filter((p) => p.validation.exists).length;
+    const newCount = newProducts.filter((p) => !p.validation.exists).length;
+    const divCount = newProducts.filter((p) => p.validation.divergences.length > 0).length;
+    setEditedDataAt(activeTabIndex, {
+      ...currentData,
+      products: newProducts,
+      summary: {
+        totalProducts: newProducts.length,
+        existingProducts: existingCount,
+        newProducts: newCount,
+        productsWithDivergences: divCount,
+      },
+    });
+    setSelectedProductIdToAdd("");
+    setQuantityToAdd("");
   };
 
   const handleSaveThisInvoice = async () => {
@@ -411,6 +463,45 @@ export function MultiInvoiceReviewModal({
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="text-sm text-red-700">Com Divergências</div>
                   <div className="text-2xl font-bold text-red-700">{currentData.summary.productsWithDivergences}</div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Plus size={20} />
+                  Adicionar produto do banco de dados
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                  Selecione um produto cadastrado e a quantidade para incluir na invoice.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px] flex-1">
+                    <ProductSearchSelect
+                      products={productsFromDb}
+                      value={selectedProductIdToAdd}
+                      onChange={setSelectedProductIdToAdd}
+                      inline
+                    />
+                  </div>
+                  <div className="w-24">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Qtd</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={quantityToAdd}
+                      onChange={(e) => setQuantityToAdd(e.target.value)}
+                      placeholder="1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddProductFromDb}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium flex items-center gap-1"
+                  >
+                    <Plus size={16} />
+                    Adicionar
+                  </button>
                 </div>
               </div>
 
