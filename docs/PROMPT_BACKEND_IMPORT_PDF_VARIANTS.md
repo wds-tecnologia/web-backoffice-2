@@ -1,43 +1,51 @@
 # CRÍTICO: Ajustes no Parser de PDF
 
-## Problema 1: Data não está sendo extraída
+## 🔴 BUG URGENTE: Data com dia/mês invertidos
 
-O campo DATE no PDF está no **formato americano** (MM/DD/YYYY) e não está sendo extraído/retornado.
+O backend está retornando a data com **dia e mês invertidos**!
 
-**Exemplo do PDF:**
+**Erro encontrado:**
 ```
-INVOICE # 2247
-DATE 11/28/2025
-DUE DATE 12/28/2025
-TERMS Net 30
-```
-
-**Backend DEVE retornar:**
-```json
-{
-  "invoiceData": {
-    "number": "2247",
-    "date": "2025-11-28"  // Convertido para ISO (YYYY-MM-DD)
-  }
-}
+PDF: DATE 11/28/2025 (MM/DD/YYYY - Novembro 28, 2025)
+Backend retorna: "2025-28-11" (YYYY-DD-MM) ❌ ERRADO!
+Deveria retornar: "2025-11-28" (YYYY-MM-DD) ✅ CORRETO
 ```
 
-**Regex para extrair:**
-```regex
-DATE\s+(\d{1,2}\/\d{1,2}\/\d{4})
+**Erro no navegador:**
+```
+The specified value "2025-28-11" does not conform to the required format, "yyyy-MM-dd".
 ```
 
-**Conversão:**
+**O problema:** O código está fazendo `YYYY-DD-MM` ao invés de `YYYY-MM-DD`
+
+**Código ERRADO (provável):**
 ```javascript
-const pdfDate = "11/28/2025";  // MM/DD/YYYY do PDF
 const [month, day, year] = pdfDate.split('/');
-const isoDate = `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
-// Resultado: "2025-11-28"
+// Se month=11, day=28, year=2025
+return `${year}-${day}-${month}`;  // "2025-28-11" ❌
 ```
+
+**Código CORRETO:**
+```javascript
+const [month, day, year] = pdfDate.split('/');
+// Se month=11, day=28, year=2025
+return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;  // "2025-11-28" ✅
+```
+
+**Formato ISO 8601:** `YYYY-MM-DD` onde:
+- YYYY = ano (4 dígitos)
+- MM = mês (2 dígitos, 01-12)
+- DD = dia (2 dígitos, 01-31)
 
 ---
 
-## Problema 2: Produtos com Variantes (Cores) devem vir SEPARADOS
+## Problema 2: Produtos com Variantes (Cores) - ✅ RESOLVIDO
+
+A separação de variantes foi implementada com `expandProductsByVariants()`.
+
+---
+
+## Problema 3 (anterior): Produtos com Variantes (Cores) devem vir SEPARADOS
 
 ## Problema Atual
 
@@ -151,18 +159,38 @@ AMOUNT: 6900.00
 
 ### 1. Detectar Variantes na DESCRIPTION
 
-A coluna DESCRIPTION geralmente contém:
+**FORMATO REAL DO PDF (baseado em exemplo):**
+
+O PDF real mostra na coluna DESCRIPTION:
 ```
-[QTD] [COR]
-[IMEIs...]
-[QTD] [COR]
-[IMEIs...]
+05 BLACK:
+353431653115931
+353171924675855
+353431651632556
+350839530691366
+351188224577153
+05 NATURAL:
+355407366677175
+353171927583023
+352400475824013
+355407369839566
+353864166921157
 ```
+
+**Observações importantes:**
+1. Formato é `[QTD 2 dígitos] [COR]:` (com dois pontos no final)
+2. Primeiro IMEI pode estar na mesma linha do variante ou na próxima
+3. Os IMEIs são 15 dígitos numéricos
 
 **Padrão regex para detectar variante:**
 ```regex
-^(\d+)\s+(BLACK|WHITE|NATURAL|SILVER|GOLD|BLUE|PURPLE|GREEN|RED|PINK|GRAPHITE|TITANIUM|[A-Z]+)
+^(\d{2})\s+([A-Z]+):\s*(\d{15})?
 ```
+
+Exemplo: `"05 BLACK:"` captura:
+- Grupo 1: `05` (quantidade)
+- Grupo 2: `BLACK` (cor)
+- Grupo 3: pode ter um IMEI na mesma linha ou não
 
 ### 2. Agrupar IMEIs por Variante
 
@@ -255,28 +283,36 @@ function parseProductVariants(pdfProduct) {
   let currentVariant = null;
   let currentImeis = [];
   
+  // Regex para detectar linha de variante: "05 BLACK:" ou "05 BLACK: 353431653115931"
+  const variantRegex = /^(\d{1,2})\s+([A-Z]+):\s*(\d{15})?/i;
+  // Regex para detectar IMEI (15 dígitos)
+  const imeiRegex = /^(\d{15})$/;
+  
   for (const line of lines) {
-    // Detectar linha de variante (ex: "5 BLACK")
-    const variantMatch = line.match(/^(\d+)\s+([A-Z]+)/);
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+    
+    const variantMatch = trimmedLine.match(variantRegex);
     
     if (variantMatch) {
       // Salvar variante anterior se existir
       if (currentVariant) {
-        variants.push({
-          ...currentVariant,
-          imeis: currentImeis
-        });
+        currentVariant.imeis = currentImeis;
+        variants.push(currentVariant);
       }
       
       // Iniciar nova variante
-      const [_, qty, color] = variantMatch;
+      const qty = parseInt(variantMatch[1], 10);
+      const color = variantMatch[2].toUpperCase();
+      const firstImei = variantMatch[3]; // Pode ser undefined
+      
       currentVariant = {
         sku: `${pdfProduct.sku}_${color}`,
         name: `${pdfProduct.name} ${color}`,
-        description: line,
-        quantity: parseInt(qty),
+        description: `${qty} ${color}`,
+        quantity: qty,
         rate: pdfProduct.rate,
-        amount: parseInt(qty) * pdfProduct.rate,
+        amount: qty * pdfProduct.rate,
         imeis: [],
         validation: {
           exists: false,
@@ -284,25 +320,66 @@ function parseProductVariants(pdfProduct) {
           divergences: []
         }
       };
-      currentImeis = [];
+      currentImeis = firstImei ? [firstImei] : [];
     }
-    // Detectar IMEI (15 dígitos)
-    else if (line.match(/^\d{15}$/)) {
-      currentImeis.push(line.trim());
+    // Detectar IMEI (15 dígitos) - linha com só o IMEI
+    else if (imeiRegex.test(trimmedLine)) {
+      currentImeis.push(trimmedLine);
+    }
+    // Também detectar IMEI no meio do texto
+    else {
+      const imeiMatch = trimmedLine.match(/(\d{15})/g);
+      if (imeiMatch) {
+        currentImeis.push(...imeiMatch);
+      }
     }
   }
   
   // Salvar última variante
   if (currentVariant) {
-    variants.push({
-      ...currentVariant,
-      imeis: currentImeis
-    });
+    currentVariant.imeis = currentImeis;
+    variants.push(currentVariant);
   }
   
   // Se não encontrou variantes, retornar produto original
   return variants.length > 0 ? variants : [pdfProduct];
 }
+```
+
+### Exemplo de Input/Output:
+
+**Input (description do produto):**
+```
+05 BLACK:
+353431653115931
+353171924675855
+353431651632556
+350839530691366
+351188224577153
+05 NATURAL:
+355407366677175
+353171927583023
+352400475824013
+355407369839566
+353864166921157
+```
+
+**Output esperado:**
+```json
+[
+  {
+    "sku": "I15PRO256P2_BLACK",
+    "name": "APPLE - IPHONE 15 PRO 256GB P2 BLACK",
+    "quantity": 5,
+    "imeis": ["353431653115931", "353171924675855", "353431651632556", "350839530691366", "351188224577153"]
+  },
+  {
+    "sku": "I15PRO256P2_NATURAL",
+    "name": "APPLE - IPHONE 15 PRO 256GB P2 NATURAL",
+    "quantity": 5,
+    "imeis": ["355407366677175", "353171927583023", "352400475824013", "355407369839566", "353864166921157"]
+  }
+]
 ```
 
 ---
