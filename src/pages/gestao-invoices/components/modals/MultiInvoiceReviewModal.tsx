@@ -724,6 +724,21 @@ export function MultiInvoiceReviewModal({
                                     </>
                                   )}
                                 </div>
+                                {/* Nome do produto vinculado (Auto ou Vinculado) — para conferir/trocar se estiver errado */}
+                                {product.validation.productId && (() => {
+                                  const linkedProduct = productsFromDb.find((p) => p.id === product.validation.productId);
+                                  const linkedName = linkedProduct?.name ?? "—";
+                                  return (
+                                    <div className="mt-1.5 text-xs text-gray-600 flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-gray-500">
+                                        {product.validation.matchedByAlias ? "Auto →" : "Vinculado a:"}
+                                      </span>
+                                      <span className="font-medium text-gray-800 bg-green-50 border border-green-200 rounded px-2 py-0.5">
+                                        {linkedName}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                             
