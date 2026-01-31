@@ -79,9 +79,12 @@ export default function InvocesManagement() {
       return next;
     });
   };
+  /** Adiciona novas invoices às abas sem remover as que já estão na tela (importar em massa de novo não afeta o que já está) */
   const handleAddDraftInvoices = (invoices: Invoice[]) => {
-    setDraftInvoices(invoices.length > 0 ? invoices : [defaultEmptyInvoice()]);
-    setActiveDraftIndex(0);
+    if (invoices.length === 0) return;
+    const firstNewIndex = draftInvoices.length;
+    setDraftInvoices((prev) => [...prev, ...invoices]);
+    setActiveDraftIndex(firstNewIndex); // foca a primeira das novas
   };
   const handleDraftSaved = () => {
     setDraftInvoices((prev) => {
