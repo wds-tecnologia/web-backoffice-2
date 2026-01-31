@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Layout as BackofficeLayout } from "../pages/backoffice/Layout/base";
 import { SignIn as BackofficeSignIn } from "../pages/backoffice/SignIn";
+import { SessionExpiredBackoffice } from "../pages/backoffice/SessionExpiredBackoffice";
 import { useAuthBackoffice } from "../hooks/authBackoffice";
 import { Logout } from "../pages/backoffice/Logout";
 import GuardedRoute from "./GuardedRoute";
@@ -43,6 +44,9 @@ export function Router() {
 
   return (
     <Routes>
+      {/* Rota pública: sessão expirada (sem proteção de auth) */}
+      <Route path="session-expired/backoffice" element={<SessionExpiredBackoffice />} />
+
       {/* Rotas quando faz o login */}
 
       <Route

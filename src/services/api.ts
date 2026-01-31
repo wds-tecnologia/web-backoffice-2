@@ -72,15 +72,22 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor de resposta para tratar erros 401
+// Interceptor de resposta: 401 ou SESSION_EXPIRED → limpar e redirecionar para sessão expirada
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token inválido ou expirado - limpar e redirecionar para login
-      localStorage.removeItem("@backoffice:token");
-      localStorage.removeItem("@backoffice:user");
-      window.location.href = "/login";
+    const status = error.response?.status;
+    const code = (error.response?.data as any)?.code;
+    const isSessionExpired = status === 401 || code === "SESSION_EXPIRED";
+    if (isSessionExpired) {
+      const path = window.location.pathname || "";
+      if (!path.startsWith("/session-expired")) {
+        localStorage.removeItem("@backoffice:token");
+        localStorage.removeItem("@backoffice:user");
+        localStorage.removeItem("@backoffice:account");
+        sessionStorage.clear();
+        window.location.href = "/session-expired/backoffice";
+      }
     }
     return Promise.reject(error);
   }
