@@ -3,6 +3,7 @@ import { Search, Loader2, Package, FileText, Building2, Truck, Calendar, DollarS
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
 import { matchSearchTerms } from "../utils/searchMatch";
+import { formatDateToBR } from "../utils/format";
 
 interface ImeiData {
   imei: string;
@@ -188,10 +189,6 @@ export function ImeiSearchTab() {
     }).format(value);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("pt-BR");
-  };
-
   return (
     <div className="bg-white p-6 rounded-lg shadow">
       <div className="mb-6">
@@ -303,7 +300,7 @@ export function ImeiSearchTab() {
             <div className="text-sm text-gray-600 mb-1">IMEI Encontrado</div>
             <div className="text-2xl font-bold text-blue-700">{imeiData.imei}</div>
             <div className="text-xs text-gray-500 mt-1">
-              Cadastrado em: {formatDate(imeiData.createdAt)}
+              Cadastrado em: {formatDateToBR(imeiData.createdAt)}
             </div>
           </div>
 
@@ -343,7 +340,7 @@ export function ImeiSearchTab() {
                   <Calendar size={14} />
                   Data
                 </div>
-                <div className="font-semibold text-gray-900">{formatDate(imeiData.invoice.date)}</div>
+                <div className="font-semibold text-gray-900">{formatDateToBR(imeiData.invoice.date)}</div>
               </div>
             </div>
           </div>

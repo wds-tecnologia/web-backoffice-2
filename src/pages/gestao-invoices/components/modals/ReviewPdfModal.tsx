@@ -173,7 +173,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     await saveProductAlias(originalPdfName, productId);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (numberExistsInDb) {
       Swal.fire({
         icon: "error",
@@ -189,25 +189,45 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     }
     
     // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
-    const imeisInvalid = editedData.products.some((p) => {
+    // MUDANÇA: Apenas avisar, mas permitir continuar
+    const imeisInvalid = editedData.products.filter((p) => {
       if (p.imeis && p.imeis.length > 0) {
         return p.imeis.length !== p.quantity;
       }
       return false;
     });
     
-    if (imeisInvalid) {
-      Swal.fire({
+    if (imeisInvalid.length > 0) {
+      const productsWithIssues = imeisInvalid.map(p => 
+        `${p.name}: ${p.imeis?.length || 0} IMEIs para ${p.quantity} produtos`
+      ).join('\n');
+      
+      const result = await Swal.fire({
         icon: "warning",
-        title: "IMEIs Inválidos",
-        text: "A quantidade de IMEIs deve ser igual à quantidade de produtos. Produtos com IMEIs devem ter exatamente o mesmo número de IMEIs que a quantidade.",
-        confirmButtonText: "Ok",
+        title: "⚠️ Aviso: IMEIs Inconsistentes",
+        html: `
+          <div class="text-left">
+            <p class="mb-3">Alguns produtos têm quantidade de IMEIs diferente da quantidade de produtos:</p>
+            <pre class="bg-yellow-50 p-3 rounded text-xs border border-yellow-200 max-h-40 overflow-y-auto">${productsWithIssues}</pre>
+            <p class="mt-3 text-sm text-gray-600">
+              <strong>Deseja continuar mesmo assim?</strong><br/>
+              Os IMEIs serão salvos como estão. Você pode ajustá-los depois.
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Sim, continuar",
+        cancelButtonText: "Cancelar",
         buttonsStyling: false,
         customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold mr-2",
+          cancelButton: "bg-gray-300 text-gray-700 hover:bg-gray-400 px-4 py-2 rounded font-semibold",
         },
       });
-      return;
+      
+      if (!result.isConfirmed) {
+        return;
+      }
     }
     
     onConfirm(editedData);

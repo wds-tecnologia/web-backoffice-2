@@ -1,57 +1,51 @@
-# CRÍTICO: Ajustes no Parser de PDF
+# Parser de PDF – Data e Variantes
 
-## 🔴 BUG URGENTE: Data com dia/mês invertidos
+## Status Atual (Backend)
 
-O backend está retornando a data com **dia e mês invertidos**!
-
-**Erro encontrado:**
-```
-PDF: DATE 11/28/2025 (MM/DD/YYYY - Novembro 28, 2025)
-Backend retorna: "2025-28-11" (YYYY-DD-MM) ❌ ERRADO!
-Deveria retornar: "2025-11-28" (YYYY-MM-DD) ✅ CORRETO
-```
-
-**Erro no navegador:**
-```
-The specified value "2025-28-11" does not conform to the required format, "yyyy-MM-dd".
-```
-
-**O problema:** O código está fazendo `YYYY-DD-MM` ao invés de `YYYY-MM-DD`
-
-**Código ERRADO (provável):**
-```javascript
-const [month, day, year] = pdfDate.split('/');
-// Se month=11, day=28, year=2025
-return `${year}-${day}-${month}`;  // "2025-28-11" ❌
-```
-
-**Código CORRETO:**
-```javascript
-const [month, day, year] = pdfDate.split('/');
-// Se month=11, day=28, year=2025
-return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;  // "2025-11-28" ✅
-```
-
-**Formato ISO 8601:** `YYYY-MM-DD` onde:
-- YYYY = ano (4 dígitos)
-- MM = mês (2 dígitos, 01-12)
-- DD = dia (2 dígitos, 01-31)
+| Item | Status | Onde |
+|------|--------|------|
+| Data MM/DD/YYYY → YYYY-MM-DD | ✅ Corrigido | `import-pdf.ts` – `extractInvoiceData()` |
+| Detectar padrão [QTD] [COR]: | ✅ Corrigido | `VARIANT_LINE_REGEX` + `expandProductByVariants()` |
+| Separar cada variante em um produto | ✅ Corrigido | `expandProductByVariants()` |
+| Agrupar IMEIs por variante | ✅ Corrigido | Consumo de linhas 15 dígitos após cada linha de variante |
 
 ---
 
-## Problema 2: Produtos com Variantes (Cores) - ✅ RESOLVIDO
+## BUG 1: Data com dia/mês invertidos – ✅ CORRIGIDO
 
-A separação de variantes foi implementada com `expandProductsByVariants()`.
+**Problema (resolvido):** PDF em MM/DD/YYYY (ex.: `11/28/2025` = 28 Nov 2025) era retornado como `"2025-28-11"` (YYYY-DD-MM) em vez de `"2025-11-28"` (YYYY-MM-DD).
+
+**Correção em** `src/http/controllers/invoices/import-pdf.ts` (função `extractInvoiceData`):
+
+- O PDF usa **MM/DD/YYYY** (formato US).
+- O código interpreta os três segmentos como `[month, day, year]` e monta a saída em **YYYY-MM-DD** (ISO 8601):
+
+```javascript
+const [month, day, year] = dateMatch[1].split("/")
+invoiceData.date = `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`
+```
+
+**Resultado:** `DATE 11/28/2025` no PDF → resposta `"2025-11-28"` ✅
 
 ---
 
-## Problema 3 (anterior): Produtos com Variantes (Cores) devem vir SEPARADOS
+## BUG 2: Separação por cor/variante – ✅ CORRIGIDO
 
-## Problema Atual
+**Problema (resolvido):** Uma linha do PDF com várias cores (ex.: 5 BLACK + 5 NATURAL) era retornada como um único produto com todos os IMEIs juntos.
 
-O backend está **agregando** produtos com o mesmo SKU base em uma única linha, mas na verdade são **variantes diferentes** (cores) que precisam vir **separadas** no array de produtos.
+**Correção em** `src/http/controllers/invoices/import-pdf.ts`:
 
-### Exemplo do problema:
+1. **Padrão de variante:** `^\s*(\d{1,2})\s+([A-Za-z]+):?\s*(\d{15})?\s*$`
+2. **Função `expandProductByVariants(product)`:** Separa cada variante em um produto, agrupa IMEIs por variante.
+3. **Fluxo:** Após `extractProducts(text)`, chama `expandProductsByVariants()`; em seguida preenche IMEIs e valida.
+
+**Resultado:** Uma linha do PDF com "05 BLACK:" + 5 IMEIs + "05 NATURAL:" + 5 IMEIs → **2 produtos** no array, cada um com seus 5 IMEIs ✅
+
+---
+
+## Documentação de Referência (para manutenção futura)
+
+### Problema Original (agregando variantes)
 
 **PDF mostra:**
 ```

@@ -1,12 +1,12 @@
-import { History, Eye, Edit, XIcon, RotateCcw, Check, Loader2, PlusCircle, Trash } from "lucide-react";
+import { History, Eye, Edit, XIcon, RotateCcw, Loader2, PlusCircle, Trash } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../../../services/api";
-import { Invoice } from "../types/invoice"; // Se necessário, ajuste o caminho do tipo
 import { Product } from "./ProductsTab";
 import Swal from "sweetalert2";
 import { useActionLoading } from "../../context/ActionLoadingContext";
 import { ProductSearchSelect } from "./SupplierSearchSelect";
 import { ProductImeis } from "../ProductImeis";
+import { fixInvertedDateString, formatDateToBR, formatDateTimeToBR } from "../utils/format";
 
 export type InvoiceData = {
   id: string;
@@ -164,7 +164,16 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
       }
       // O backend agora retorna { products: [...], totalProducts: ..., page: ..., limit: ..., totalPages: ... }
       setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data.products || []);
-      setInvoices(invoiceResponse.data);
+      
+      // Corrigir datas invertidas antes de salvar (YYYY-DD-MM → YYYY-MM-DD)
+      const invoicesWithFixedDates = invoiceResponse.data.map((inv: any) => ({
+        ...inv,
+        date: fixInvertedDateString(inv.date),
+        paidDate: inv.paidDate ? fixInvertedDateString(inv.paidDate) : null,
+        completedDate: inv.completedDate ? fixInvertedDateString(inv.completedDate) : null,
+      }));
+      
+      setInvoices(invoicesWithFixedDates);
       setSuppliers(supplierResponse.data);
     } catch (error) {
       console.error("Erro ao buscar dados:", error);
@@ -455,18 +464,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{supplier?.name || "-"}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <i className="fas fa-clock text-green-500 mr-2"></i>
-                          {(() => {
-                            const date = new Date(invoice.date);
-                            const horas = date.getHours();
-                            const minutos = date.getMinutes();
-                            const segundos = date.getSeconds();
-                            const dataFormatada = date.toLocaleDateString("pt-BR");
-                            const horaFormatada = `${String(horas).padStart(2, "0")}:${String(minutos).padStart(
-                              2,
-                              "0"
-                            )}:${String(segundos).padStart(2, "0")}`;
-                            return horas + minutos + segundos > 0 ? `${dataFormatada} ${horaFormatada}` : dataFormatada;
-                          })()}{" "}
+                          {formatDateTimeToBR(invoice.date)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                           {formatCurrency(total)}
@@ -768,12 +766,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                 <p className="text-sm text-gray-600">
                   Data:{" "}
                   <span id="modalInvoiceDate">
-                    {" "}
-                    {selectedInvoice.date
-                      ? new Date(new Date(selectedInvoice.date).getTime() + 3 * 60 * 60 * 1000).toLocaleDateString(
-                          "pt-BR"
-                        )
-                      : "Não informado"}
+                    {selectedInvoice.date ? formatDateToBR(selectedInvoice.date) : "Não informado"}
                   </span>
                 </p>
                 <p className="text-sm text-gray-600">

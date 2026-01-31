@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatDateToBR } from '../utils/format';
 
 interface InvoiceModalProps {
   isOpen: boolean;
@@ -40,7 +41,7 @@ const InvoiceModal: React.FC<InvoiceModalProps> = ({ isOpen, onClose, invoice })
           <div>
             <h3 className="text-lg font-medium">Invoice #{invoice.number}</h3>
             <p className="text-sm text-gray-600">Fornecedor: {invoice.supplier}</p>
-            <p className="text-sm text-gray-600">Data: {invoice.date}</p>
+            <p className="text-sm text-gray-600">Data: {formatDateToBR(invoice.date)}</p>
             <p className="text-sm text-gray-600">Freteiro: {invoice.carrier}</p>
           </div>
           <div>

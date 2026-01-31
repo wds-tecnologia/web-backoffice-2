@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Printer, FileText, Check, Truck, Building } from 'lucide-react';
+import { formatDateTimeToBR } from '../utils/format';
 
 interface ViewInvoiceModalProps {
   invoice: {
@@ -74,7 +75,7 @@ export function ViewInvoiceModal({
               Fornecedor: <span>{supplier?.name || 'Não informado'}</span>
             </p>
             <p className="text-sm text-gray-600">
-              Data: <span>{new Date(invoice.date).toLocaleString('pt-BR')}</span>
+              Data: <span>{formatDateTimeToBR(invoice.date)}</span>
             </p>
             <p className="text-sm text-gray-600">
               Freteiro: <span>{carrier?.name || 'Não informado'}</span>
