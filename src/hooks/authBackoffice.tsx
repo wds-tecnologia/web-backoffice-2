@@ -1,5 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
 import { api } from "../services/api";
+import IdleTimeoutModal from "./handleSignoutInactivy";
 
 export type User = {
   id: string;
@@ -7,7 +15,7 @@ export type User = {
   name: string;
   email: string;
   document: string;
-  role: "MASTER" | "ADMIN" | "OPERATOR" | string; // ajuste conforme seus enums
+  role: "MASTER" | "ADMIN" | "OPERATOR" | string;
   type: "LEGAL" | "NATURAL" | string;
   status: "ACTIVE" | "INACTIVE" | string;
   api_key: string;
@@ -16,18 +24,18 @@ export type User = {
   permissions: {
     [key: string]: {
       enabled: boolean;
-      [subPermission: string]: any; // se houver subpermissões, você pode refinar
+      [subPermission: string]: any;
     };
   };
-  created_at: string; // pode usar Date se fizer parsing
+  created_at: string;
   updated_at: string;
 };
 
 interface AuthBackofficeContextProps {
   isAuthenticated: boolean;
   onSignIn: (params: { email: string; password: string }) => Promise<void>;
-  onLogout: () => void;
-  // TODO colocar tipagem certa no user
+  /** Se true, limpa storage e redireciona para /session-expired/backoffice */
+  onLogout: (redirectToSessionExpired?: boolean) => void;
   user: User | undefined;
 }
 
@@ -37,21 +45,25 @@ interface AuthBackofficeProviderProps {
 
 const AuthBackofficeContext = createContext({} as AuthBackofficeContextProps);
 
+const INACTIVITY_LIMIT = 300000; // 5 minutos
+
 const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
   const [isAuthenticated, setIsAuthenticate] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const lastActivityTimeRef = useRef<number>(Date.now());
+
   const [user, setUser] = useState<User | undefined>(() => {
     try {
       const userString = localStorage.getItem("@backoffice:user");
+      const token = localStorage.getItem("@backoffice:token");
 
-      if (userString) {
+      if (userString && token) {
         const userData = JSON.parse(userString);
         return userData as User;
       }
-
       return undefined;
     } catch (error) {
-      console.log(error);
-
+      console.error("Erro ao carregar usuário do storage:", error);
       return undefined;
     }
   });
@@ -60,123 +72,199 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
     try {
       const response = await api.post("/auth/backoffice", params);
       setUser(response.data.user);
-      try {
-        localStorage.setItem("@backoffice:token", response.data.token);
-        localStorage.setItem("@backoffice:user", JSON.stringify(response.data.user));
-
-        const savedToken = localStorage.getItem("@backoffice:token");
-        const savedUser = localStorage.getItem("@backoffice:user");
-
-        if (!savedToken || !savedUser) {
-          throw new Error("Falha ao persistir os dados tente novamente.");
-        }
-      } catch (storageError) {
-        console.error("Erro ao salvar/verificar localStorage:", storageError);
-        throw new Error("Erro ao salvar dados de autenticação localmente.");
+      localStorage.setItem("@backoffice:token", response.data.token);
+      localStorage.setItem("@backoffice:user", JSON.stringify(response.data.user));
+      const savedToken = localStorage.getItem("@backoffice:token");
+      const savedUser = localStorage.getItem("@backoffice:user");
+      if (!savedToken || !savedUser) {
+        throw new Error("Falha ao persistir os dados tente novamente.");
       }
       setIsAuthenticate(true);
       return response.data;
     } catch (err) {
       console.error(err);
       localStorage.removeItem("@backoffice:token");
-      // ✅ SOLUÇÃO: lançar o erro para que SignIn.tsx possa tratar corretamente
       throw new Error("Credenciais inválidas");
     }
   };
 
-  const onLogout = () => {
-    localStorage.removeItem("@backoffice:token");
-    localStorage.removeItem("@backoffice:account");
-    localStorage.removeItem("@backoffice:user");
-    setIsAuthenticate(false);
-  };
+  const closeModal = useCallback(() => {
+    lastActivityTimeRef.current = Date.now();
+    setIsModalOpen(false);
+  }, []);
+
+  const onLogout = useCallback((redirectToSessionExpired = false) => {
+    try {
+      localStorage.removeItem("@backoffice:token");
+      localStorage.removeItem("@backoffice:account");
+      localStorage.removeItem("@backoffice:user");
+      localStorage.removeItem("@stricv2:token");
+      localStorage.removeItem("@stricv2:account");
+      localStorage.removeItem("@stricv2:user");
+      sessionStorage.clear();
+      setIsAuthenticate(false);
+      if (redirectToSessionExpired) {
+        const path = window.location.pathname || "";
+        if (path.startsWith("/session-expired")) return;
+        window.location.href = "/session-expired/backoffice";
+      }
+    } catch (error) {
+      console.error("Erro durante logout:", error);
+      localStorage.clear();
+      sessionStorage.clear();
+      setIsAuthenticate(false);
+      if (redirectToSessionExpired) {
+        window.location.href = "/session-expired/backoffice";
+      }
+    }
+  }, []);
 
   let isFetchingAccount = false;
 
-  const initialize = async () => {
+  const initialize = useCallback(async () => {
+    const currentPath = window.location.pathname || "";
+
+    if (
+      currentPath === "/session-expired" ||
+      currentPath === "/session-expired/backoffice"
+    ) {
+      setIsAuthenticate(false);
+      return;
+    }
+    if (currentPath === "/signin/backoffice") {
+      setIsAuthenticate(false);
+      return;
+    }
+    if (!currentPath.startsWith("/backoffice")) {
+      setIsAuthenticate(false);
+      return;
+    }
+
     const token = localStorage.getItem("@backoffice:token");
-    if (!token) {
+    const userString = localStorage.getItem("@backoffice:user");
+
+    if (!token || !userString) {
+      onLogout(true);
       return;
     }
 
     try {
       const { data } = await api.get("/auth/me/backoffice", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      localStorage.setItem("@backoffice:token", data.user.access_token);
-
-      if (token) {
+      if (data?.user?.access_token) {
+        localStorage.setItem("@backoffice:token", data.user.access_token);
         setIsAuthenticate(true);
+      } else {
+        setIsAuthenticate(false);
       }
-    } catch (err) {
-      console.error(err);
-      onLogout();
+    } catch (err: any) {
+      const status = err.response?.status;
+      const code = err.response?.data?.code;
+      if (status === 401 && code === "SESSION_EXPIRED") {
+        onLogout(true);
+      } else {
+        setIsAuthenticate(false);
+      }
     }
-  };
+  }, [onLogout]);
 
   useEffect(() => {
     const interceptor = api.interceptors.request.use(
       async function (config: any) {
-        // Sempre adicionar o token atual aos headers se não estiver presente
         const token = localStorage.getItem("@backoffice:token");
         if (token && !config.headers.Authorization) {
           config.headers.Authorization = `Bearer ${token}`;
         }
-        
-        // Se não há token e não está fazendo fetch de account, tentar inicializar
         if (!token && !isFetchingAccount && !config.url?.includes("/auth/")) {
           isFetchingAccount = true;
           await initialize();
           isFetchingAccount = false;
-          
-          // Após inicializar, adicionar o novo token se disponível
           const newToken = localStorage.getItem("@backoffice:token");
-          if (newToken) {
+          if (newToken && !config.headers.Authorization) {
             config.headers.Authorization = `Bearer ${newToken}`;
           }
         }
-        
         return config;
       },
       function (error: any) {
         return Promise.reject(error);
       }
     );
-
-    return () => {
-      api.interceptors.request.eject(interceptor);
-    };
-  }, []);
+    return () => api.interceptors.request.eject(interceptor);
+  }, [initialize]);
 
   useEffect(() => {
     initialize();
-  }, []);
+  }, [initialize]);
 
-  let lastActivityTime = 0;
-  let inactivityTimer: string | number | NodeJS.Timeout | undefined;
-
-  const handleMouseActivity = useCallback(() => {
-    lastActivityTime = new Date().getTime();
-    clearTimeout(inactivityTimer);
-    inactivityTimer = setTimeout(() => {
-      onLogout();
-    }, 10 * 60 * 1000);
-  }, []);
-
+  // Inatividade: 5 min, modal, redirecionamento para session-expired
   useEffect(() => {
-    if (process.env.REACT_APP_NODE_ENV !== "develop") {
-      console.log(process.env);
-      window.addEventListener("mousemove", handleMouseActivity);
+    const currentPath = window.location.pathname || "";
+    const isBackofficeRoute = currentPath.startsWith("/backoffice");
+    const isPublicRoute =
+      currentPath.startsWith("/signin") ||
+      currentPath.startsWith("/session-expired") ||
+      currentPath.startsWith("/forgot") ||
+      currentPath.startsWith("/new-password") ||
+      currentPath.startsWith("/privacy") ||
+      currentPath.startsWith("/recoveryPassword") ||
+      currentPath.startsWith("/create-account") ||
+      currentPath.startsWith("/home");
+
+    const CAN_ACTIVATE =
+      isAuthenticated &&
+      isBackofficeRoute &&
+      !isPublicRoute;
+
+    if (!CAN_ACTIVATE) {
+      setIsModalOpen(false);
+      return;
     }
 
-    return () => {
-      clearTimeout(inactivityTimer);
-      window.removeEventListener("mousemove", handleMouseActivity);
+    lastActivityTimeRef.current = Date.now();
+
+    const handleUserActivity = () => {
+      lastActivityTimeRef.current = Date.now();
     };
-  }, [handleMouseActivity]);
+
+    const checkForInactivity = () => {
+      const timeElapsed = Date.now() - lastActivityTimeRef.current;
+      const pathCheck = window.location.pathname || "";
+      const stillBackoffice = pathCheck.startsWith("/backoffice");
+      const stillPublic =
+        pathCheck.startsWith("/signin") ||
+        pathCheck.startsWith("/session-expired") ||
+        pathCheck.startsWith("/forgot") ||
+        pathCheck.startsWith("/new-password") ||
+        pathCheck.startsWith("/privacy") ||
+        pathCheck.startsWith("/recoveryPassword") ||
+        pathCheck.startsWith("/create-account") ||
+        pathCheck.startsWith("/home");
+
+      if (!stillBackoffice || stillPublic || !isAuthenticated) {
+        setIsModalOpen(false);
+        return;
+      }
+      if (timeElapsed >= INACTIVITY_LIMIT) {
+        setIsModalOpen(true);
+      }
+    };
+
+    window.addEventListener("mousemove", handleUserActivity, { passive: true });
+    window.addEventListener("click", handleUserActivity, { passive: true });
+    window.addEventListener("keydown", handleUserActivity, { passive: true });
+    window.addEventListener("scroll", handleUserActivity, { passive: true });
+    const inactivityInterval = setInterval(checkForInactivity, 1000);
+
+    return () => {
+      window.removeEventListener("mousemove", handleUserActivity);
+      window.removeEventListener("click", handleUserActivity);
+      window.removeEventListener("keydown", handleUserActivity);
+      window.removeEventListener("scroll", handleUserActivity);
+      clearInterval(inactivityInterval);
+    };
+  }, [isAuthenticated]);
 
   return (
     <AuthBackofficeContext.Provider
@@ -188,17 +276,22 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
       }}
     >
       {children}
+      {isModalOpen && (
+        <IdleTimeoutModal
+          isOpen={isModalOpen}
+          onClose={closeModal}
+          onSignOut={() => onLogout(true)}
+        />
+      )}
     </AuthBackofficeContext.Provider>
   );
 };
 
 const useAuthBackoffice = () => {
   const context = useContext(AuthBackofficeContext);
-
   if (!context) {
-    throw new Error("useAuth must be used within a AuthProvider");
+    throw new Error("useAuthBackoffice must be used within AuthBackofficeProvider");
   }
-
   return context;
 };
 
