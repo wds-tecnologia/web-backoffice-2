@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, Plus, LayoutGrid } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2, LayoutGrid, Eye } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -53,6 +53,7 @@ function pdfDataListToInvoices(
       paidDollarRate: null,
       completed: false,
       completedDate: null,
+      _isDateFromPdf: true, // Marca que a data veio do PDF
     };
   });
 }
@@ -238,10 +239,13 @@ export function MultiInvoiceReviewModal({
     if (!productFromDb || !currentData) return;
     const newProducts = [...currentData.products];
     const current = newProducts[productIndex];
+    
+    // IMPORTANTE: Manter o preço da invoice (não sobrescrever com o preço do banco)
+    // O preço da invoice é o atual, e deve atualizar o produto no sistema
     newProducts[productIndex] = {
       ...current,
       name: productFromDb.name,
-      rate: productFromDb.priceweightAverage ?? current.rate,
+      // Mantém o rate original da invoice (não pega do banco)
       validation: {
         ...current.validation,
         productId,
@@ -317,12 +321,20 @@ export function MultiInvoiceReviewModal({
       });
       return;
     }
-    const hasEmpty = currentData.products.some((p) => !p.name || p.quantity <= 0 || p.rate <= 0);
-    if (hasEmpty) {
+    
+    // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
+    const imeisInvalid = currentData.products.some((p) => {
+      if (p.imeis && p.imeis.length > 0) {
+        return p.imeis.length !== p.quantity;
+      }
+      return false;
+    });
+    
+    if (imeisInvalid) {
       Swal.fire({
         icon: "warning",
-        title: "Dados Incompletos",
-        text: "Todos os produtos devem ter nome, quantidade e valor preenchidos.",
+        title: "IMEIs Inválidos",
+        text: "A quantidade de IMEIs deve ser igual à quantidade de produtos. Produtos com IMEIs devem ter exatamente o mesmo número de IMEIs que a quantidade.",
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
@@ -441,7 +453,7 @@ export function MultiInvoiceReviewModal({
   if (!isOpen || pdfDataList.length === 0) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => allSaved && handleClose()}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div
         className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
@@ -560,51 +572,12 @@ export function MultiInvoiceReviewModal({
                   <div className="text-2xl font-bold text-green-700">{currentData.summary.existingProducts}</div>
                 </div>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="text-sm text-yellow-700">Produtos Novos</div>
+                  <div className="text-sm text-yellow-700">Produtos a Vincular</div>
                   <div className="text-2xl font-bold text-yellow-700">{currentData.summary.newProducts}</div>
                 </div>
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="text-sm text-red-700">Com Divergências</div>
                   <div className="text-2xl font-bold text-red-700">{currentData.summary.productsWithDivergences}</div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                  <Plus size={20} />
-                  Adicionar produto do banco de dados
-                </h3>
-                <p className="text-sm text-gray-600 mb-3">
-                  Selecione um produto cadastrado e a quantidade para incluir na invoice.
-                </p>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="min-w-[200px] flex-1">
-                    <ProductSearchSelect
-                      products={productsFromDb}
-                      value={selectedProductIdToAdd}
-                      onChange={setSelectedProductIdToAdd}
-                      inline
-                    />
-                  </div>
-                  <div className="w-24">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Qtd</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={quantityToAdd}
-                      onChange={(e) => setQuantityToAdd(e.target.value)}
-                      placeholder="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleAddProductFromDb}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium flex items-center gap-1"
-                  >
-                    <Plus size={16} />
-                    Adicionar
-                  </button>
                 </div>
               </div>
 
@@ -640,13 +613,23 @@ export function MultiInvoiceReviewModal({
                               </div>
                               <div className="flex-1">
                                 <div className="font-semibold text-gray-900">{product.name}</div>
-                                <div className="text-sm text-gray-600">
-                                  Qtd: {product.quantity} | Valor: {formatCurrency(product.rate)} | Total:{" "}
-                                  {formatCurrency(product.amount)}
+                                <div className="text-sm text-gray-600 flex items-center gap-2 flex-wrap">
+                                  <span>Qtd: {product.quantity}</span>
+                                  <span>|</span>
+                                  <span>Valor: {formatCurrency(product.rate)}</span>
+                                  <span>|</span>
+                                  <span>Total: {formatCurrency(product.amount)}</span>
                                   {product.imeis.length > 0 && (
-                                    <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                                      {product.imeis.length} IMEIs
-                                    </span>
+                                    <>
+                                      <span>|</span>
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+                                        <Eye size={12} />
+                                        {product.imeis.length} IMEI{product.imeis.length !== 1 ? 's' : ''}
+                                        {product.imeis.length !== product.quantity && (
+                                          <AlertTriangle size={12} className="text-red-600 ml-1" />
+                                        )}
+                                      </span>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -657,72 +640,106 @@ export function MultiInvoiceReviewModal({
                           </div>
                         </div>
                         {isExpanded && (
-                          <div className="border-t bg-white p-4 space-y-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                                <input
-                                  type="text"
-                                  value={product.name}
-                                  onChange={(e) => handleProductEdit(productIndex, "name", e.target.value)}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
-                                <input
-                                  type="number"
-                                  value={product.quantity}
-                                  onChange={(e) => handleProductEdit(productIndex, "quantity", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={product.rate}
-                                  onChange={(e) => handleProductEdit(productIndex, "rate", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                            </div>
-                            <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                              <div className="font-semibold text-blue-900 flex items-center gap-2 mb-2">
-                                <Link2 size={16} />
-                                Vincular produto já existente
-                              </div>
-                              <p className="text-sm text-blue-800 mb-2">
-                                A invoice nem sempre vem completa. Selecione um produto do banco para vincular e
-                                completar nome/valor a partir do cadastro.
-                              </p>
-                              <ProductSearchSelect
-                                products={productsFromDb}
-                                value={product.validation.productId || ""}
-                                onChange={(id) => handleLinkProduct(productIndex, id)}
-                                inline
-                              />
-                            </div>
-                            {product.imeis.length > 0 && (
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  IMEIs/Seriais ({product.imeis.length})
-                                </label>
-                                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
-                                  <div className="flex flex-wrap gap-2">
-                                    {product.imeis.map((imei, imeiIndex) => (
-                                      <span
-                                        key={imeiIndex}
-                                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                      >
-                                        {imei}
-                                      </span>
-                                    ))}
+                          <div className="border-t bg-white p-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                              {/* Coluna Esquerda: Detalhes do Produto (2/3) */}
+                              <div className="lg:col-span-2 space-y-4">
+                                {/* Editable Fields */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                                    <input
+                                      type="text"
+                                      value={product.name}
+                                      onChange={(e) => handleProductEdit(productIndex, "name", e.target.value)}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+                                    <input
+                                      type="number"
+                                      value={product.quantity}
+                                      onChange={(e) => handleProductEdit(productIndex, "quantity", Number(e.target.value))}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={product.rate}
+                                      onChange={(e) => handleProductEdit(productIndex, "rate", Number(e.target.value))}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                    />
                                   </div>
                                 </div>
+
+                                {/* IMEIs */}
+                                {product.imeis.length > 0 && (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <label className="block text-sm font-medium text-gray-700">
+                                        IMEIs/Seriais ({product.imeis.length})
+                                        {product.imeis.length !== product.quantity && (
+                                          <span className="ml-2 text-xs text-red-600 font-semibold">
+                                            ⚠ Qtd diferente de {product.quantity}
+                                          </span>
+                                        )}
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const list = product.imeis.join("\n");
+                                          navigator.clipboard.writeText(list);
+                                        }}
+                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                      >
+                                        Copiar
+                                      </button>
+                                    </div>
+                                    <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
+                                      <div className="flex flex-wrap gap-2">
+                                        {product.imeis.map((imei, imeiIndex) => (
+                                          <span
+                                            key={imeiIndex}
+                                            className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                          >
+                                            {imei}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            )}
+
+                              {/* Coluna Direita: Vincular Produto (1/3) */}
+                              <div className="lg:col-span-1">
+                                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 sticky top-4">
+                                  <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
+                                    <Link2 size={18} />
+                                    Vincular Produto
+                                  </div>
+                                  <p className="text-sm text-blue-800 mb-3">
+                                    Selecione um produto do banco para vincular e atualizar nome/valor.
+                                  </p>
+                                  <ProductSearchSelect
+                                    products={productsFromDb}
+                                    value={product.validation.productId || ""}
+                                    onChange={(id) => handleLinkProduct(productIndex, id)}
+                                    inline
+                                  />
+                                  {product.validation.productId && (
+                                    <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
+                                      <Check size={14} />
+                                      Produto vinculado
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>

@@ -57,7 +57,11 @@ export function InvoicesTab({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <NewInvoiceForm currentInvoice={currentInvoice} setCurrentInvoice={setCurrentInvoice} />
+        <NewInvoiceForm 
+          currentInvoice={currentInvoice} 
+          setCurrentInvoice={setCurrentInvoice}
+          isDateFromPdf={currentInvoice._isDateFromPdf}
+        />
         <InvoiceProducts
           currentInvoice={currentInvoice}
           setCurrentInvoice={setCurrentInvoice}
