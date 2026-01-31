@@ -12,6 +12,8 @@ export interface PdfProduct {
   rate: number;
   amount: number;
   imeis: string[];
+  /** Nome original do PDF (antes de vincular) - usado para salvar alias */
+  originalPdfName?: string;
   validation: {
     exists: boolean;
     productId: string | null;
@@ -22,6 +24,10 @@ export interface PdfProduct {
       severity: string;
     }>;
     needsReview?: boolean;
+    /** true se foi reconhecido automaticamente por alias salvo */
+    matchedByAlias?: boolean;
+    /** ID do alias que fez o match */
+    aliasId?: string;
   };
 }
 
@@ -52,12 +58,11 @@ type ProductFromDb = { id: string; name: string; code?: string; priceweightAvera
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [linkPopupIndex, setLinkPopupIndex] = useState<number | null>(null);
   const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selectedProductIdToAdd, setSelectedProductIdToAdd] = useState("");
-  const [quantityToAdd, setQuantityToAdd] = useState("");
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
@@ -142,22 +147,41 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     });
   };
 
-  const handleLinkProduct = (index: number, productId: string) => {
+  // Salvar alias no backend para reconhecimento automático futuro
+  const saveProductAlias = async (pdfProductName: string, productId: string) => {
+    try {
+      await api.post("/invoice/product/alias", {
+        pdfProductName,
+        productId,
+      });
+    } catch (err) {
+      // Silencioso - não bloqueia o fluxo se falhar
+      console.warn("Falha ao salvar alias de produto:", err);
+    }
+  };
+
+  const handleLinkProduct = async (index: number, productId: string) => {
     const productFromDb = productsFromDb.find((p) => p.id === productId);
-    if (!productFromDb) return;
+    if (!productFromDb || !editedData) return;
+    
+    // Pegar o nome original do PDF antes de modificar (usa o salvo ou o atual)
+    const current = editedData.products[index];
+    const originalPdfName = current.originalPdfName || current.name;
+    
     setEditedData((prev) => {
       if (!prev) return prev;
       const newProducts = [...prev.products];
-      const current = newProducts[index];
+      const currentProduct = newProducts[index];
       
       // IMPORTANTE: Manter o preço da invoice (não sobrescrever com o preço do banco)
       // O preço da invoice é o atual, e deve atualizar o produto no sistema
       newProducts[index] = {
-        ...current,
+        ...currentProduct,
         name: productFromDb.name,
+        originalPdfName: originalPdfName, // Guarda o nome original do PDF
         // Mantém o rate original da invoice (não pega do banco)
         validation: {
-          ...current.validation,
+          ...currentProduct.validation,
           productId,
           exists: true,
           divergences: [],
@@ -165,59 +189,9 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       };
       return { ...prev, products: newProducts };
     });
-  };
-
-  const handleAddProductFromDb = () => {
-    const productFromDb = productsFromDb.find((p) => p.id === selectedProductIdToAdd);
-    const qty = Number(quantityToAdd);
-    if (!productFromDb || !qty || qty <= 0) {
-      Swal.fire({
-        icon: "warning",
-        title: "Campos obrigatórios",
-        text: "Selecione um produto e informe uma quantidade maior que zero.",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
-    const rate = productFromDb.priceweightAverage ?? 0;
-    const amount = qty * rate;
-    const newProduct: PdfProduct = {
-      sku: productFromDb.id,
-      name: productFromDb.name,
-      description: "",
-      quantity: qty,
-      rate,
-      amount,
-      imeis: [],
-      validation: {
-        exists: true,
-        productId: productFromDb.id,
-        divergences: [],
-      },
-    };
-    setEditedData((prev) => {
-      if (!prev) return prev;
-      const newProducts = [...prev.products, newProduct];
-      const existingCount = newProducts.filter((p) => p.validation.exists).length;
-      const newCount = newProducts.filter((p) => !p.validation.exists).length;
-      const divCount = newProducts.filter((p) => p.validation.divergences.length > 0).length;
-      return {
-        ...prev,
-        products: newProducts,
-        summary: {
-          totalProducts: newProducts.length,
-          existingProducts: existingCount,
-          newProducts: newCount,
-          productsWithDivergences: divCount,
-        },
-      };
-    });
-    setSelectedProductIdToAdd("");
-    setQuantityToAdd("");
+    
+    // Salvar alias para reconhecimento automático nas próximas importações
+    await saveProductAlias(originalPdfName, productId);
   };
 
   const handleConfirm = () => {
@@ -323,12 +297,21 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                 <input
                   type="date"
                   value={editedData.invoiceData.date}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    let value = e.target.value;
+                    // Garantir formato YYYY-MM-DD
+                    if (value && !value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                      // Se não está no formato correto, tentar converter
+                      const testDate = new Date(value);
+                      if (!isNaN(testDate.getTime())) {
+                        value = testDate.toLocaleDateString("en-CA");
+                      }
+                    }
                     setEditedData({
                       ...editedData,
-                      invoiceData: { ...editedData.invoiceData, date: e.target.value },
-                    })
-                  }
+                      invoiceData: { ...editedData.invoiceData, date: value },
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md"
                 />
               </div>
@@ -372,11 +355,12 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                 const isExpanded = expandedProducts.has(index);
                 const hasDivergences = product.validation.divergences.length > 0;
                 const isNew = !product.validation.exists;
+                const isLinkPopupOpen = linkPopupIndex === index;
 
                 return (
                   <div
                     key={index}
-                    className={`border rounded-lg overflow-hidden ${
+                    className={`border rounded-lg overflow-visible relative ${
                       hasDivergences
                         ? "border-red-300 bg-red-50"
                         : isNew
@@ -385,12 +369,12 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                     }`}
                   >
                     {/* Product Header */}
-                    <div
-                      className="p-4 cursor-pointer hover:bg-opacity-80"
-                      onClick={() => toggleProductExpand(index)}
-                    >
+                    <div className="p-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3 flex-1">
+                        <div 
+                          className="flex items-center gap-3 flex-1 cursor-pointer hover:bg-opacity-80"
+                          onClick={() => toggleProductExpand(index)}
+                        >
                           <div className="flex-shrink-0">
                             {product.validation.exists ? (
                               <Check size={20} className="text-green-600" />
@@ -421,145 +405,205 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                 </div>
                               </div>
                         </div>
-                        <div className="flex-shrink-0">
-                          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                        
+                        {/* Botão Vincular Produto - abre popup */}
+                        <div className="flex items-center gap-2 flex-shrink-0 relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setLinkPopupIndex(isLinkPopupOpen ? null : index);
+                            }}
+                            className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                              product.validation.productId
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                            }`}
+                          >
+                            <Link2 size={14} />
+                            {product.validation.matchedByAlias 
+                              ? "Auto" 
+                              : product.validation.productId 
+                                ? "Vinculado" 
+                                : "Vincular"}
+                          </button>
+                          
+                          {/* Popup flutuante para vincular produto */}
+                          {isLinkPopupOpen && (
+                            <>
+                              {/* Overlay para fechar o popup */}
+                              <div 
+                                className="fixed inset-0 z-40"
+                                onClick={() => setLinkPopupIndex(null)}
+                              />
+                              <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                                <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
+                                  <Link2 size={18} />
+                                  Vincular Produto
+                                </div>
+                                
+                                {/* Mostrar nome original do PDF se houver */}
+                                {(product.originalPdfName || product.validation.matchedByAlias) && (
+                                  <div className="mb-3 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
+                                    <span className="text-gray-500">Nome no PDF:</span>
+                                    <div className="font-mono text-gray-700 mt-1 break-all">
+                                      {product.originalPdfName || product.name}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {product.validation.matchedByAlias && (
+                                  <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center gap-2">
+                                    <Check size={14} />
+                                    Reconhecido automaticamente por vínculo salvo
+                                  </div>
+                                )}
+                                
+                                <p className="text-sm text-gray-600 mb-3">
+                                  {product.validation.productId 
+                                    ? "Alterar vínculo para outro produto:" 
+                                    : "Selecione um produto do banco para vincular:"}
+                                </p>
+                                <ProductSearchSelect
+                                  products={productsFromDb}
+                                  value={product.validation.productId || ""}
+                                  onChange={(id) => {
+                                    handleLinkProduct(index, id);
+                                    setLinkPopupIndex(null);
+                                  }}
+                                  inline
+                                />
+                                {product.validation.productId && !product.validation.matchedByAlias && (
+                                  <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
+                                    <Check size={14} />
+                                    Produto vinculado! Será reconhecido automaticamente nas próximas importações.
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkPopupIndex(null)}
+                                  className="mt-3 w-full px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                                >
+                                  Fechar
+                                </button>
+                              </div>
+                            </>
+                          )}
+                          
+                          <button
+                            type="button"
+                            onClick={() => toggleProductExpand(index)}
+                            className="p-1.5 rounded hover:bg-gray-200"
+                          >
+                            {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                          </button>
                         </div>
                       </div>
                     </div>
 
                     {/* Product Details (Expanded) */}
                     {isExpanded && (
-                      <div className="border-t bg-white p-4">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                          {/* Coluna Esquerda: Detalhes do Produto (2/3) */}
-                          <div className="lg:col-span-2 space-y-4">
-                            {/* Editable Fields */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                                <input
-                                  type="text"
-                                  value={product.name}
-                                  onChange={(e) => handleProductEdit(index, "name", e.target.value)}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
-                                <input
-                                  type="number"
-                                  value={product.quantity}
-                                  onChange={(e) => handleProductEdit(index, "quantity", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={product.rate}
-                                  onChange={(e) => handleProductEdit(index, "rate", Number(e.target.value))}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                />
-                              </div>
-                            </div>
-
-                            {/* IMEIs */}
-                            {product.imeis.length > 0 && (
-                              <div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <label className="block text-sm font-medium text-gray-700">
-                                    IMEIs/Seriais ({product.imeis.length})
-                                    {product.imeis.length !== product.quantity && (
-                                      <span className="ml-2 text-xs text-red-600 font-semibold">
-                                        ⚠ Qtd diferente de {product.quantity}
-                                      </span>
-                                    )}
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const list = product.imeis.join("\n");
-                                      navigator.clipboard.writeText(list);
-                                    }}
-                                    className="text-xs text-blue-600 hover:text-blue-800"
-                                  >
-                                    Copiar
-                                  </button>
-                                </div>
-                                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
-                                  <div className="flex flex-wrap gap-2">
-                                    {product.imeis.map((imei, imeiIndex) => (
-                                      <span
-                                        key={imeiIndex}
-                                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                      >
-                                        {imei}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Divergences */}
-                            {hasDivergences && (
-                              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                                <div className="font-semibold text-red-900 mb-2 flex items-center gap-2">
-                                  <AlertTriangle size={16} />
-                                  Divergências Encontradas
-                                </div>
-                                <ul className="space-y-1 text-sm">
-                                  {product.validation.divergences.map((div, divIndex) => (
-                                    <li key={divIndex} className="text-red-700">
-                                      <strong>{div.field}:</strong> PDF: "{String(div.pdfValue)}" | Banco: "
-                                      {String(div.dbValue)}"
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* New Product Warning */}
-                            {isNew && !product.validation.productId && (
-                              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
-                                <div className="font-semibold text-yellow-900 flex items-center gap-2">
-                                  <AlertTriangle size={16} />
-                                  Produto a Vincular
-                                </div>
-                                <p className="text-sm text-yellow-700 mt-1">
-                                  Este produto não foi encontrado no banco. Use a seção ao lado para vincular a um produto existente.
-                                </p>
-                              </div>
-                            )}
+                      <div className="border-t bg-white p-4 space-y-4">
+                        {/* Editable Fields */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                            <input
+                              type="text"
+                              value={product.name}
+                              onChange={(e) => handleProductEdit(index, "name", e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            />
                           </div>
-
-                          {/* Coluna Direita: Vincular Produto (1/3) */}
-                          <div className="lg:col-span-1">
-                            <div className="bg-blue-50 border border-blue-200 rounded-md p-4 sticky top-4">
-                              <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
-                                <Link2 size={18} />
-                                Vincular Produto
-                              </div>
-                              <p className="text-sm text-blue-800 mb-3">
-                                Selecione um produto do banco para vincular e atualizar nome/valor.
-                              </p>
-                              <ProductSearchSelect
-                                products={productsFromDb}
-                                value={product.validation.productId || ""}
-                                onChange={(id) => handleLinkProduct(index, id)}
-                                inline
-                              />
-                              {product.validation.productId && (
-                                <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
-                                  <Check size={14} />
-                                  Produto vinculado
-                                </div>
-                              )}
-                            </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+                            <input
+                              type="number"
+                              value={product.quantity}
+                              onChange={(e) => handleProductEdit(index, "quantity", Number(e.target.value))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={product.rate}
+                              onChange={(e) => handleProductEdit(index, "rate", Number(e.target.value))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                            />
                           </div>
                         </div>
+
+                        {/* IMEIs */}
+                        {product.imeis.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-sm font-medium text-gray-700">
+                                IMEIs/Seriais ({product.imeis.length})
+                                {product.imeis.length !== product.quantity && (
+                                  <span className="ml-2 text-xs text-red-600 font-semibold">
+                                    ⚠ Qtd diferente de {product.quantity}
+                                  </span>
+                                )}
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const list = product.imeis.join("\n");
+                                  navigator.clipboard.writeText(list);
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                              >
+                                Copiar
+                              </button>
+                            </div>
+                            <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
+                              <div className="flex flex-wrap gap-2">
+                                {product.imeis.map((imei, imeiIndex) => (
+                                  <span
+                                    key={imeiIndex}
+                                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                  >
+                                    {imei}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Divergences */}
+                        {hasDivergences && (
+                          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                            <div className="font-semibold text-red-900 mb-2 flex items-center gap-2">
+                              <AlertTriangle size={16} />
+                              Divergências Encontradas
+                            </div>
+                            <ul className="space-y-1 text-sm">
+                              {product.validation.divergences.map((div, divIndex) => (
+                                <li key={divIndex} className="text-red-700">
+                                  <strong>{div.field}:</strong> PDF: "{String(div.pdfValue)}" | Banco: "
+                                  {String(div.dbValue)}"
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* New Product Warning */}
+                        {isNew && !product.validation.productId && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                            <div className="font-semibold text-yellow-900 flex items-center gap-2">
+                              <AlertTriangle size={16} />
+                              Produto a Vincular
+                            </div>
+                            <p className="text-sm text-yellow-700 mt-1">
+                              Este produto não foi encontrado no banco. Clique em "Vincular" para associar a um produto existente.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

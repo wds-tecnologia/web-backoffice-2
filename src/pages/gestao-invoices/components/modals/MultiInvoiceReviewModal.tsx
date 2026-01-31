@@ -34,10 +34,46 @@ function pdfDataListToInvoices(
       defaultInvoice.taxaSpEs == null || defaultInvoice.taxaSpEs === ""
         ? "0"
         : String(defaultInvoice.taxaSpEs).trim();
+    
+    // Converter data para o formato correto (YYYY-MM-DD)
+    let formattedDate = data.invoiceData?.date;
+    if (formattedDate) {
+      // Se a data estiver em formato DD/MM/YYYY ou MM/DD/YYYY, converter para YYYY-MM-DD
+      if (formattedDate.includes('/')) {
+        const parts = formattedDate.split('/');
+        if (parts[2]?.length === 4) {
+          if (parseInt(parts[0]) > 12) {
+            // É DD/MM/YYYY
+            formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          } else if (parseInt(parts[1]) > 12) {
+            // É MM/DD/YYYY
+            formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+          } else {
+            // Assumir MM/DD/YYYY (formato americano)
+            formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+          }
+        }
+      } else if (formattedDate.includes('-')) {
+        const parts = formattedDate.split('-');
+        if (parts[0]?.length !== 4 && parts[2]?.length === 4) {
+          // DD-MM-YYYY, converter
+          formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      
+      // Validar se a data é válida
+      const testDate = new Date(formattedDate);
+      if (isNaN(testDate.getTime())) {
+        formattedDate = new Date().toLocaleDateString("en-CA");
+      }
+    } else {
+      formattedDate = new Date().toLocaleDateString("en-CA");
+    }
+    
     return {
       id: null,
       number: data.invoiceData?.number ?? "",
-      date: data.invoiceData?.date ?? new Date().toLocaleDateString("en-CA"),
+      date: formattedDate,
       supplierId: defaultInvoice.supplierId ?? "",
       products,
       carrierId: defaultInvoice.carrierId ?? "",
@@ -89,14 +125,13 @@ export function MultiInvoiceReviewModal({
   const [savedIndices, setSavedIndices] = useState<Set<number>>(new Set());
   const [editedDataList, setEditedDataList] = useState<PdfData[]>([]);
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [linkPopupIndex, setLinkPopupIndex] = useState<number | null>(null);
   const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberExistsByIndex, setNumberExistsByIndex] = useState<Record<number, boolean>>({});
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const allNumbersCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [selectedProductIdToAdd, setSelectedProductIdToAdd] = useState("");
-  const [quantityToAdd, setQuantityToAdd] = useState("");
   const { setOpenNotification } = useNotification();
   const { executeAction } = useActionLoading();
 
@@ -234,17 +269,35 @@ export function MultiInvoiceReviewModal({
     setEditedDataAt(activeTabIndex, { ...currentData, products: newProducts });
   };
 
-  const handleLinkProduct = (productIndex: number, productId: string) => {
+  // Salvar alias no backend para reconhecimento automático futuro
+  const saveProductAlias = async (pdfProductName: string, productId: string) => {
+    try {
+      await api.post("/invoice/product/alias", {
+        pdfProductName,
+        productId,
+      });
+    } catch (err) {
+      // Silencioso - não bloqueia o fluxo se falhar
+      console.warn("Falha ao salvar alias de produto:", err);
+    }
+  };
+
+  const handleLinkProduct = async (productIndex: number, productId: string) => {
     const productFromDb = productsFromDb.find((p) => p.id === productId);
     if (!productFromDb || !currentData) return;
+    
+    // Pegar o nome original do PDF antes de modificar (usa o salvo ou o atual)
+    const current = currentData.products[productIndex];
+    const originalPdfName = current.originalPdfName || current.name;
+    
     const newProducts = [...currentData.products];
-    const current = newProducts[productIndex];
     
     // IMPORTANTE: Manter o preço da invoice (não sobrescrever com o preço do banco)
     // O preço da invoice é o atual, e deve atualizar o produto no sistema
     newProducts[productIndex] = {
       ...current,
       name: productFromDb.name,
+      originalPdfName: originalPdfName, // Guarda o nome original do PDF
       // Mantém o rate original da invoice (não pega do banco)
       validation: {
         ...current.validation,
@@ -254,56 +307,9 @@ export function MultiInvoiceReviewModal({
       },
     };
     setEditedDataAt(activeTabIndex, { ...currentData, products: newProducts });
-  };
-
-  const handleAddProductFromDb = () => {
-    const productFromDb = productsFromDb.find((p) => p.id === selectedProductIdToAdd);
-    const qty = Number(quantityToAdd);
-    if (!productFromDb || !currentData || !qty || qty <= 0) {
-      Swal.fire({
-        icon: "warning",
-        title: "Campos obrigatórios",
-        text: "Selecione um produto e informe uma quantidade maior que zero.",
-        confirmButtonText: "Ok",
-        buttonsStyling: false,
-        customClass: {
-          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-        },
-      });
-      return;
-    }
-    const rate = productFromDb.priceweightAverage ?? 0;
-    const amount = qty * rate;
-    const newProduct: PdfProduct = {
-      sku: productFromDb.id,
-      name: productFromDb.name,
-      description: "",
-      quantity: qty,
-      rate,
-      amount,
-      imeis: [],
-      validation: {
-        exists: true,
-        productId: productFromDb.id,
-        divergences: [],
-      },
-    };
-    const newProducts = [...currentData.products, newProduct];
-    const existingCount = newProducts.filter((p) => p.validation.exists).length;
-    const newCount = newProducts.filter((p) => !p.validation.exists).length;
-    const divCount = newProducts.filter((p) => p.validation.divergences.length > 0).length;
-    setEditedDataAt(activeTabIndex, {
-      ...currentData,
-      products: newProducts,
-      summary: {
-        totalProducts: newProducts.length,
-        existingProducts: existingCount,
-        newProducts: newCount,
-        productsWithDivergences: divCount,
-      },
-    });
-    setSelectedProductIdToAdd("");
-    setQuantityToAdd("");
+    
+    // Salvar alias para reconhecimento automático nas próximas importações
+    await saveProductAlias(originalPdfName, productId);
   };
 
   const handleSaveThisInvoice = async () => {
@@ -544,12 +550,20 @@ export function MultiInvoiceReviewModal({
                     <input
                       type="date"
                       value={currentData.invoiceData.date}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        let value = e.target.value;
+                        // Garantir formato YYYY-MM-DD
+                        if (value && !value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                          const testDate = new Date(value);
+                          if (!isNaN(testDate.getTime())) {
+                            value = testDate.toLocaleDateString("en-CA");
+                          }
+                        }
                         setEditedDataAt(activeTabIndex, {
                           ...currentData,
-                          invoiceData: { ...currentData.invoiceData, date: e.target.value },
-                        })
-                      }
+                          invoiceData: { ...currentData.invoiceData, date: value },
+                        });
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md"
                     />
                   </div>
@@ -591,19 +605,22 @@ export function MultiInvoiceReviewModal({
                     const isExpanded = expandedProducts.has(productIndex);
                     const hasDivergences = product.validation.divergences.length > 0;
                     const isNew = !product.validation.exists;
+                    const isLinkPopupOpen = linkPopupIndex === productIndex;
+                    
                     return (
                       <div
                         key={productIndex}
-                        className={`border rounded-lg overflow-hidden ${
+                        className={`border rounded-lg overflow-visible relative ${
                           hasDivergences ? "border-red-300 bg-red-50" : isNew ? "border-yellow-300 bg-yellow-50" : "border-green-300 bg-green-50"
                         }`}
                       >
-                        <div
-                          className="p-4 cursor-pointer hover:bg-opacity-80"
-                          onClick={() => toggleProductExpand(productIndex)}
-                        >
+                        {/* Product Header */}
+                        <div className="p-4">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 flex-1">
+                            <div 
+                              className="flex items-center gap-3 flex-1 cursor-pointer hover:bg-opacity-80"
+                              onClick={() => toggleProductExpand(productIndex)}
+                            >
                               <div className="flex-shrink-0">
                                 {product.validation.exists ? (
                                   <Check size={20} className="text-green-600" />
@@ -634,112 +651,173 @@ export function MultiInvoiceReviewModal({
                                 </div>
                               </div>
                             </div>
-                            <div className="flex-shrink-0">
-                              {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                            
+                            {/* Botão Vincular Produto - abre popup */}
+                            <div className="flex items-center gap-2 flex-shrink-0 relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setLinkPopupIndex(isLinkPopupOpen ? null : productIndex);
+                                }}
+                                className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                                  product.validation.productId
+                                    ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                    : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                }`}
+                              >
+                                <Link2 size={14} />
+                                {product.validation.matchedByAlias 
+                                  ? "Auto" 
+                                  : product.validation.productId 
+                                    ? "Vinculado" 
+                                    : "Vincular"}
+                              </button>
+                              
+                              {/* Popup flutuante para vincular produto */}
+                              {isLinkPopupOpen && (
+                                <>
+                                  {/* Overlay para fechar o popup */}
+                                  <div 
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setLinkPopupIndex(null)}
+                                  />
+                                  <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                                    <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
+                                      <Link2 size={18} />
+                                      Vincular Produto
+                                    </div>
+                                    
+                                    {/* Mostrar nome original do PDF se houver */}
+                                    {(product.originalPdfName || product.validation.matchedByAlias) && (
+                                      <div className="mb-3 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
+                                        <span className="text-gray-500">Nome no PDF:</span>
+                                        <div className="font-mono text-gray-700 mt-1 break-all">
+                                          {product.originalPdfName || product.name}
+                                        </div>
+                                      </div>
+                                    )}
+                                    
+                                    {product.validation.matchedByAlias && (
+                                      <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center gap-2">
+                                        <Check size={14} />
+                                        Reconhecido automaticamente por vínculo salvo
+                                      </div>
+                                    )}
+                                    
+                                    <p className="text-sm text-gray-600 mb-3">
+                                      {product.validation.productId 
+                                        ? "Alterar vínculo para outro produto:" 
+                                        : "Selecione um produto do banco para vincular:"}
+                                    </p>
+                                    <ProductSearchSelect
+                                      products={productsFromDb}
+                                      value={product.validation.productId || ""}
+                                      onChange={(id) => {
+                                        handleLinkProduct(productIndex, id);
+                                        setLinkPopupIndex(null);
+                                      }}
+                                      inline
+                                    />
+                                    {product.validation.productId && !product.validation.matchedByAlias && (
+                                      <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
+                                        <Check size={14} />
+                                        Produto vinculado! Será reconhecido automaticamente nas próximas importações.
+                                      </div>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => setLinkPopupIndex(null)}
+                                      className="mt-3 w-full px-3 py-1.5 bg-gray-100 text-gray-700 rounded-md text-sm hover:bg-gray-200"
+                                    >
+                                      Fechar
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                              
+                              <button
+                                type="button"
+                                onClick={() => toggleProductExpand(productIndex)}
+                                className="p-1.5 rounded hover:bg-gray-200"
+                              >
+                                {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                              </button>
                             </div>
                           </div>
                         </div>
+                        
                         {isExpanded && (
-                          <div className="border-t bg-white p-4">
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                              {/* Coluna Esquerda: Detalhes do Produto (2/3) */}
-                              <div className="lg:col-span-2 space-y-4">
-                                {/* Editable Fields */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                                    <input
-                                      type="text"
-                                      value={product.name}
-                                      onChange={(e) => handleProductEdit(productIndex, "name", e.target.value)}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
-                                    <input
-                                      type="number"
-                                      value={product.quantity}
-                                      onChange={(e) => handleProductEdit(productIndex, "quantity", Number(e.target.value))}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
-                                    <input
-                                      type="number"
-                                      step="0.01"
-                                      value={product.rate}
-                                      onChange={(e) => handleProductEdit(productIndex, "rate", Number(e.target.value))}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
-                                    />
-                                  </div>
-                                </div>
-
-                                {/* IMEIs */}
-                                {product.imeis.length > 0 && (
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <label className="block text-sm font-medium text-gray-700">
-                                        IMEIs/Seriais ({product.imeis.length})
-                                        {product.imeis.length !== product.quantity && (
-                                          <span className="ml-2 text-xs text-red-600 font-semibold">
-                                            ⚠ Qtd diferente de {product.quantity}
-                                          </span>
-                                        )}
-                                      </label>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const list = product.imeis.join("\n");
-                                          navigator.clipboard.writeText(list);
-                                        }}
-                                        className="text-xs text-blue-600 hover:text-blue-800"
-                                      >
-                                        Copiar
-                                      </button>
-                                    </div>
-                                    <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
-                                      <div className="flex flex-wrap gap-2">
-                                        {product.imeis.map((imei, imeiIndex) => (
-                                          <span
-                                            key={imeiIndex}
-                                            className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                          >
-                                            {imei}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
+                          <div className="border-t bg-white p-4 space-y-4">
+                            {/* Editable Fields */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                                <input
+                                  type="text"
+                                  value={product.name}
+                                  onChange={(e) => handleProductEdit(productIndex, "name", e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                />
                               </div>
-
-                              {/* Coluna Direita: Vincular Produto (1/3) */}
-                              <div className="lg:col-span-1">
-                                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 sticky top-4">
-                                  <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
-                                    <Link2 size={18} />
-                                    Vincular Produto
-                                  </div>
-                                  <p className="text-sm text-blue-800 mb-3">
-                                    Selecione um produto do banco para vincular e atualizar nome/valor.
-                                  </p>
-                                  <ProductSearchSelect
-                                    products={productsFromDb}
-                                    value={product.validation.productId || ""}
-                                    onChange={(id) => handleLinkProduct(productIndex, id)}
-                                    inline
-                                  />
-                                  {product.validation.productId && (
-                                    <div className="mt-3 p-2 bg-green-100 border border-green-300 rounded text-xs text-green-800 flex items-center gap-2">
-                                      <Check size={14} />
-                                      Produto vinculado
-                                    </div>
-                                  )}
-                                </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Quantidade</label>
+                                <input
+                                  type="number"
+                                  value={product.quantity}
+                                  onChange={(e) => handleProductEdit(productIndex, "quantity", Number(e.target.value))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Unitário</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={product.rate}
+                                  onChange={(e) => handleProductEdit(productIndex, "rate", Number(e.target.value))}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                                />
                               </div>
                             </div>
+
+                            {/* IMEIs */}
+                            {product.imeis.length > 0 && (
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <label className="block text-sm font-medium text-gray-700">
+                                    IMEIs/Seriais ({product.imeis.length})
+                                    {product.imeis.length !== product.quantity && (
+                                      <span className="ml-2 text-xs text-red-600 font-semibold">
+                                        ⚠ Qtd diferente de {product.quantity}
+                                      </span>
+                                    )}
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const list = product.imeis.join("\n");
+                                      navigator.clipboard.writeText(list);
+                                    }}
+                                    className="text-xs text-blue-600 hover:text-blue-800"
+                                  >
+                                    Copiar
+                                  </button>
+                                </div>
+                                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-32 overflow-y-auto">
+                                  <div className="flex flex-wrap gap-2">
+                                    {product.imeis.map((imei, imeiIndex) => (
+                                      <span
+                                        key={imeiIndex}
+                                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                      >
+                                        {imei}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
