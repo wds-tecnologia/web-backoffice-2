@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
-import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp, Link2 } from "lucide-react";
 import Swal from "sweetalert2";
+import { api } from "../../../../services/api";
+import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
 
-interface PdfProduct {
+export interface PdfProduct {
   sku: string;
   name: string;
   description: string;
@@ -23,7 +25,7 @@ interface PdfProduct {
   };
 }
 
-interface PdfData {
+export interface PdfData {
   invoiceData: {
     number: string;
     date: string;
@@ -45,17 +47,75 @@ interface ReviewPdfModalProps {
   onConfirm: (data: PdfData) => void;
 }
 
+type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
+
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+  const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
+  const [numberExistsInDb, setNumberExistsInDb] = useState(false);
+  const [numberCheckLoading, setNumberCheckLoading] = useState(false);
+  const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
     if (isOpen && pdfData) {
       setEditedData(pdfData);
       setExpandedProducts(new Set());
+      setNumberExistsInDb(false);
     }
   }, [isOpen, pdfData]);
+
+  // Buscar produtos do banco para vincular
+  useEffect(() => {
+    if (!isOpen) return;
+    api
+      .get("/invoice/product")
+      .then((res) => {
+        const raw = res.data;
+        const list = Array.isArray(raw) ? raw : raw?.products ?? [];
+        setProductsFromDb(list);
+      })
+      .catch(() => setProductsFromDb([]));
+  }, [isOpen]);
+
+  // Verificar se número da invoice já existe no BD (debounced)
+  useEffect(() => {
+    const number = String(editedData?.invoiceData?.number ?? "").trim();
+    if (!number) {
+      setNumberExistsInDb(false);
+      setNumberCheckLoading(false);
+      return;
+    }
+    if (numberCheckTimerRef.current) clearTimeout(numberCheckTimerRef.current);
+    setNumberCheckLoading(true);
+    numberCheckTimerRef.current = setTimeout(() => {
+      numberCheckTimerRef.current = null;
+      api
+        .get("/invoice/exists-by-number", { params: { number } })
+        .then((res) => {
+          setNumberExistsInDb(Boolean(res.data?.exists));
+          setNumberCheckLoading(false);
+        })
+        .catch(() => {
+          // Fallback se o endpoint ainda não existir: usar lista completa
+          api
+            .get("/invoice/get")
+            .then((fallbackRes) => {
+              const list = Array.isArray(fallbackRes.data) ? fallbackRes.data : fallbackRes.data?.data ?? [];
+              const exists = list.some(
+                (inv: any) => String(inv?.number ?? "").trim().toLowerCase() === number.toLowerCase()
+              );
+              setNumberExistsInDb(exists);
+            })
+            .catch(() => setNumberExistsInDb(false))
+            .finally(() => setNumberCheckLoading(false));
+        });
+    }, 400);
+    return () => {
+      if (numberCheckTimerRef.current) clearTimeout(numberCheckTimerRef.current);
+    };
+  }, [editedData?.invoiceData?.number]);
 
   if (!isOpen || !pdfData || !editedData) return null;
 
@@ -80,10 +140,43 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     });
   };
 
+  const handleLinkProduct = (index: number, productId: string) => {
+    const productFromDb = productsFromDb.find((p) => p.id === productId);
+    if (!productFromDb) return;
+    setEditedData((prev) => {
+      if (!prev) return prev;
+      const newProducts = [...prev.products];
+      const current = newProducts[index];
+      newProducts[index] = {
+        ...current,
+        name: productFromDb.name,
+        rate: productFromDb.priceweightAverage ?? current.rate,
+        validation: {
+          ...current.validation,
+          productId,
+          exists: true,
+          divergences: [],
+        },
+      };
+      return { ...prev, products: newProducts };
+    });
+  };
+
   const handleConfirm = () => {
-    // Validações básicas
+    if (numberExistsInDb) {
+      Swal.fire({
+        icon: "error",
+        title: "Número já existe",
+        text: "Já existe uma invoice com este número no banco. Altere o número para continuar.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
     const hasEmptyProducts = editedData.products.some((p) => !p.name || p.quantity <= 0 || p.rate <= 0);
-    
     if (hasEmptyProducts) {
       Swal.fire({
         icon: "warning",
@@ -97,7 +190,6 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       });
       return;
     }
-
     onConfirm(editedData);
   };
 
@@ -134,7 +226,15 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
             <h3 className="font-semibold text-blue-900 mb-3">Informações da Invoice</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número</label>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    numberExistsInDb ? "text-red-700" : "text-gray-700"
+                  }`}
+                >
+                  Número
+                  {numberExistsInDb && " — Já existe no banco"}
+                  {numberCheckLoading && !numberExistsInDb && " (verificando...)"}
+                </label>
                 <input
                   type="text"
                   value={editedData.invoiceData.number}
@@ -144,7 +244,11 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                       invoiceData: { ...editedData.invoiceData, number: e.target.value },
                     })
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                  className={`w-full px-3 py-2 border rounded-md ${
+                    numberExistsInDb
+                      ? "border-red-500 bg-red-50 text-red-900 focus:ring-red-500 focus:border-red-500"
+                      : "border-gray-300"
+                  }`}
                 />
               </div>
               <div>
@@ -320,16 +424,34 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                           </div>
                         )}
 
+                        {/* Vincular produto existente - completar dados do banco */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                          <div className="font-semibold text-blue-900 flex items-center gap-2 mb-2">
+                            <Link2 size={16} />
+                            Vincular produto já existente
+                          </div>
+                          <p className="text-sm text-blue-800 mb-2">
+                            A invoice nem sempre vem completa. Selecione um produto do banco para vincular e completar
+                            nome/valor a partir do cadastro.
+                          </p>
+                          <ProductSearchSelect
+                            products={productsFromDb}
+                            value={product.validation.productId || ""}
+                            onChange={(id) => handleLinkProduct(index, id)}
+                            inline
+                          />
+                        </div>
+
                         {/* New Product Warning */}
-                        {isNew && (
+                        {isNew && !product.validation.productId && (
                           <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
                             <div className="font-semibold text-yellow-900 flex items-center gap-2">
                               <AlertTriangle size={16} />
                               Produto Novo
                             </div>
                             <p className="text-sm text-yellow-700 mt-1">
-                              Este produto não foi encontrado no banco de dados. Ele será criado automaticamente ao
-                              confirmar.
+                              Este produto não foi encontrado no banco. Vincule acima a um produto existente ou deixe
+                              para cadastrar novo ao confirmar.
                             </p>
                           </div>
                         )}

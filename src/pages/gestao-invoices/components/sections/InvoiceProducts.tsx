@@ -8,6 +8,7 @@ import { useNotification } from "../../../../hooks/notification";
 import { useActionLoading } from "../../context/ActionLoadingContext";
 import { ImportPdfModal } from "../modals/ImportPdfModal";
 import { ReviewPdfModal } from "../modals/ReviewPdfModal";
+import { MultiInvoiceReviewModal } from "../modals/MultiInvoiceReviewModal";
 
 export type InvoiceProduct = {
   id: string;
@@ -49,9 +50,12 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const [valorRaw, setValorRaw] = useState("");
   const [showImportModal, setShowImportModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [showTabsModal, setShowTabsModal] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
-  /** Fila de PDFs restantes ao importar em massa (revisão um a um) */
+  /** Fila de PDFs restantes ao importar em massa (revisão um a um) — usado só quando 1 PDF */
   const [pdfDataQueue, setPdfDataQueue] = useState<any[]>([]);
+  /** Lista de PDFs para o modal com abas (2+ PDFs = cada um em uma aba) */
+  const [pdfDataList, setPdfDataList] = useState<any[]>([]);
   const [productForm, setProductForm] = useState({
     productId: "",
     quantity: "",
@@ -215,9 +219,16 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const handleImportSuccess = (data: any) => {
     const list = Array.isArray(data) ? data : [data];
     if (list.length === 0) return;
-    setPdfData(list[0]);
-    setPdfDataQueue(list.slice(1));
-    setShowReviewModal(true);
+    if (list.length === 1) {
+      setPdfData(list[0]);
+      setPdfDataQueue([]);
+      setShowReviewModal(true);
+      setShowTabsModal(false);
+    } else {
+      setPdfDataList(list);
+      setShowTabsModal(true);
+      setShowReviewModal(false);
+    }
   };
 
   const handleConfirmPdf = async (editedData: any) => {
@@ -563,6 +574,19 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         }}
         pdfData={pdfData}
         onConfirm={handleConfirmPdf}
+      />
+      <MultiInvoiceReviewModal
+        isOpen={showTabsModal}
+        onClose={() => {
+          setShowTabsModal(false);
+          setPdfDataList([]);
+        }}
+        pdfDataList={pdfDataList}
+        defaultInvoice={currentInvoice}
+        onAllSaved={() => {
+          window.dispatchEvent(new Event("invoiceUpdated"));
+          props.onInvoiceSaved?.();
+        }}
       />
 
       {showProductForm && (
