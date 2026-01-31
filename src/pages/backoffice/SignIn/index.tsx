@@ -56,8 +56,8 @@ export function SignIn() {
       setLoading(true);
       setErrorMessage(""); // limpa erro anterior se houver
       await onSignIn({ email: emailLower, password });
-      localStorage.setItem("@backofficev2:token", "fakeToken");
-      navigate("/backoffice");
+      // Navegar no próximo tick para o estado isAuthenticated ser commitado antes do GuardedRoute avaliar
+      setTimeout(() => navigate("/backoffice"), 0);
     } catch (err) {
       setErrorMessage("Erro ao realizar login. Verifique suas credenciais.");
       console.error(err);
