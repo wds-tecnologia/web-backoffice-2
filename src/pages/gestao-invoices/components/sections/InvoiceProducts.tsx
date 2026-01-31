@@ -342,19 +342,6 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         return;
       }
 
-      if (!currentInvoice.supplierId) {
-        Swal.fire({
-          icon: "warning",
-          title: "Atenção",
-          text: "Selecione um fornecedor!",
-          confirmButtonText: "Ok",
-          buttonsStyling: false,
-          customClass: {
-            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
-          },
-        });
-        return;
-      }
       const now = new Date();
       const time = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
       const dateWithTime = new Date(`${currentInvoice.date}T${time}`);
@@ -995,23 +982,29 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
             </div>
           </div>
         </div>
-        <button
-          onClick={saveInvoice}
-          className="w-full bg-blue-600 mt-4 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={isActionLoading}
-        >
-          {isActionLoading ? (
-            <>
-              <Loader2 className="animate-spin mr-2" size={18} />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2" size={18} />
-              Salvar Invoice
-            </>
-          )}
-        </button>
+        <div className="mt-4">
+          <button
+            onClick={saveInvoice}
+            title="Salva a invoice da aba atual no banco. Se houver várias abas, salva esta e mostra a próxima."
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isActionLoading}
+          >
+            {isActionLoading ? (
+              <>
+                <Loader2 className="animate-spin mr-2" size={18} />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="mr-2" size={18} />
+                Salvar Invoice
+              </>
+            )}
+          </button>
+          <p className="text-xs text-gray-500 mt-1 text-center">
+            Salva a invoice desta aba. Várias abas? Salva esta e passa para a próxima.
+          </p>
+        </div>
       </div>
     </div>
   );

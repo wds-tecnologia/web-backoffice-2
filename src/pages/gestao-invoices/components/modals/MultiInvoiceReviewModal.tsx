@@ -90,8 +90,10 @@ export function MultiInvoiceReviewModal({
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
   const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
+  const [numberExistsByIndex, setNumberExistsByIndex] = useState<Record<number, boolean>>({});
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const allNumbersCheckRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedProductIdToAdd, setSelectedProductIdToAdd] = useState("");
   const [quantityToAdd, setQuantityToAdd] = useState("");
   const { setOpenNotification } = useNotification();
@@ -127,7 +129,9 @@ export function MultiInvoiceReviewModal({
       api
         .get("/invoice/exists-by-number", { params: { number } })
         .then((res) => {
-          setNumberExistsInDb(Boolean(res.data?.exists));
+          const exists = Boolean(res.data?.exists);
+          setNumberExistsInDb(exists);
+          setNumberExistsByIndex((prev) => ({ ...prev, [activeTabIndex]: exists }));
           setNumberCheckLoading(false);
         })
         .catch(() => {
@@ -140,15 +144,19 @@ export function MultiInvoiceReviewModal({
                 (inv: any) => String(inv?.number ?? "").trim().toLowerCase() === number.toLowerCase()
               );
               setNumberExistsInDb(exists);
+              setNumberExistsByIndex((prev) => ({ ...prev, [activeTabIndex]: exists }));
             })
-            .catch(() => setNumberExistsInDb(false))
+            .catch(() => {
+              setNumberExistsInDb(false);
+              setNumberExistsByIndex((prev) => ({ ...prev, [activeTabIndex]: false }));
+            })
             .finally(() => setNumberCheckLoading(false));
         });
     }, 400);
     return () => {
       if (numberCheckTimerRef.current) clearTimeout(numberCheckTimerRef.current);
     };
-  }, [currentData?.invoiceData?.number]);
+  }, [currentData?.invoiceData?.number, activeTabIndex]);
 
   useEffect(() => {
     if (isOpen && pdfDataList.length > 0) {
@@ -157,8 +165,49 @@ export function MultiInvoiceReviewModal({
       setActiveTabIndex(0);
       setExpandedProducts(new Set());
       setNumberExistsInDb(false);
+      setNumberExistsByIndex({});
     }
   }, [isOpen, pdfDataList]);
+
+  // Verificar em tempo real, para todas as abas, se o número já existe no banco (cabeçalho vermelho)
+  useEffect(() => {
+    if (!isOpen || editedDataList.length === 0) return;
+    if (allNumbersCheckRef.current) clearTimeout(allNumbersCheckRef.current);
+    allNumbersCheckRef.current = setTimeout(() => {
+      allNumbersCheckRef.current = null;
+      const check = async (data: PdfData, i: number) => {
+        const number = String(data?.invoiceData?.number ?? "").trim();
+        if (!number) return { i, exists: false };
+        try {
+          const res = await api.get("/invoice/exists-by-number", { params: { number } });
+          return { i, exists: Boolean(res.data?.exists) };
+        } catch {
+          try {
+            const fallbackRes = await api.get("/invoice/get");
+            const list = Array.isArray(fallbackRes.data) ? fallbackRes.data : fallbackRes.data?.data ?? [];
+            const exists = list.some(
+              (inv: any) => String(inv?.number ?? "").trim().toLowerCase() === number.toLowerCase()
+            );
+            return { i, exists };
+          } catch {
+            return { i, exists: false };
+          }
+        }
+      };
+      Promise.all(editedDataList.map((data, i) => check(data, i))).then((results) => {
+        setNumberExistsByIndex((prev) => {
+          const next = { ...prev };
+          results.forEach(({ i, exists }) => {
+            next[i] = exists;
+          });
+          return next;
+        });
+      });
+    }, 400);
+    return () => {
+      if (allNumbersCheckRef.current) clearTimeout(allNumbersCheckRef.current);
+    };
+  }, [isOpen, editedDataList]);
 
   const setEditedDataAt = (index: number, data: PdfData) => {
     setEditedDataList((prev) => {
@@ -283,15 +332,6 @@ export function MultiInvoiceReviewModal({
       return;
     }
 
-    if (!defaultInvoice.supplierId) {
-      setOpenNotification({
-        type: "warning",
-        title: "Atenção",
-        notification: "Selecione um fornecedor na tela principal antes de salvar.",
-      });
-      return;
-    }
-
     await executeAction(async () => {
       const now = new Date();
       const time = now.toTimeString().split(" ")[0];
@@ -388,14 +428,6 @@ export function MultiInvoiceReviewModal({
   };
 
   const handleSendToScreen = () => {
-    if (!defaultInvoice.supplierId) {
-      setOpenNotification({
-        type: "warning",
-        title: "Atenção",
-        notification: "Selecione um fornecedor na tela principal antes de enviar para a tela.",
-      });
-      return;
-    }
     const invoices = pdfDataListToInvoices(editedDataList, defaultInvoice);
     onSendToScreen?.(invoices);
     onClose();
@@ -428,10 +460,11 @@ export function MultiInvoiceReviewModal({
           </button>
         </div>
 
-        {/* Tabs (estilo Excel) */}
+        {/* Tabs (estilo Excel) — cabeçalho fica vermelho se número já existe no banco */}
         <div className="border-b bg-gray-50 px-4 pt-2 flex flex-wrap gap-1">
           {editedDataList.map((data, index) => {
             const isSaved = savedIndices.has(index);
+            const numberExists = numberExistsByIndex[index] === true;
             const num = data?.invoiceData?.number ?? `#${index + 1}`;
             return (
               <button
@@ -441,15 +474,18 @@ export function MultiInvoiceReviewModal({
                   setActiveTabIndex(index);
                   setExpandedProducts(new Set());
                 }}
-                className={`px-4 py-2 rounded-t-lg border-b-2 font-medium transition-colors ${
-                  activeTabIndex === index
+                className={`px-4 py-2 rounded-t-lg border-b-2 font-medium transition-colors flex items-center gap-1.5 ${
+                  numberExists
+                    ? "border-red-500 bg-red-50 text-red-700 hover:bg-red-100"
+                    : activeTabIndex === index
                     ? "border-blue-600 bg-white text-blue-700 -mb-px"
                     : isSaved
                     ? "border-green-500 bg-green-50 text-green-800 hover:bg-green-100"
                     : "border-transparent bg-white text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {isSaved && <Check size={14} className="inline mr-1" />}
+                {numberExists && <AlertTriangle size={14} className="flex-shrink-0" />}
+                {isSaved && !numberExists && <Check size={14} className="inline mr-0" />}
                 Invoice {num}
               </button>
             );
@@ -698,18 +734,27 @@ export function MultiInvoiceReviewModal({
 
         {/* Footer */}
         <div className="flex justify-between items-center gap-4 p-6 border-t bg-gray-50 flex-wrap">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 max-w-md">
             {allSaved ? (
               <span className="text-green-700 font-medium">Todas as invoices foram salvas. Você pode fechar.</span>
             ) : (
-              <span>Salve uma a uma ou envie todas para a tela como rascunhos (abas) e salve depois.</span>
+              <>
+                <span className="block font-medium text-gray-700 mb-1">Dois caminhos:</span>
+                <span className="block">
+                  <strong>Enviar para a tela</strong> — manda todas as invoices para abas na tela principal (rascunho; nada vai pro banco ainda). Depois você salva uma a uma.
+                </span>
+                <span className="block mt-0.5">
+                  <strong>Salvar esta Invoice</strong> — grava só a aba atual no banco agora. Repita para cada aba.
+                </span>
+              </>
             )}
           </div>
-          <div className="flex gap-3 flex-wrap">
+          <div className="flex gap-3 flex-wrap items-center">
             {onSendToScreen && (
               <button
                 type="button"
                 onClick={handleSendToScreen}
+                title="Envia todas as invoices para abas na tela principal, sem salvar no banco. Você salva uma a uma depois."
                 className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
               >
                 <LayoutGrid size={18} />
@@ -720,6 +765,7 @@ export function MultiInvoiceReviewModal({
               <button
                 type="button"
                 onClick={handleSaveThisInvoice}
+                title="Salva a invoice da aba atual no banco de dados (e IMEIs). A aba fica verde."
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
                 <Save size={18} />
