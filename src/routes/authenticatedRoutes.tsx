@@ -29,9 +29,7 @@ const LOGIN_ROUTE = "/signin/backoffice";
 
 function RequireAuthBackoffice({ children }: { children: JSX.Element }) {
   useEffect(() => {
-    const session = sessionStorage.getItem("registerbackoffice");
-    if (!session) {
-      localStorage.clear();
+    if (!sessionStorage.getItem("registerbackoffice")) {
       sessionStorage.setItem("registerbackoffice", "2");
     }
   }, []);
