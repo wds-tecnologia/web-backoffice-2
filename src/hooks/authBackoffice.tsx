@@ -71,19 +71,28 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
   const onSignIn = async (params: { email: string; password: string }) => {
     try {
       const response = await api.post("/auth/backoffice", params);
-      setUser(response.data.user);
-      localStorage.setItem("@backoffice:token", response.data.token);
-      localStorage.setItem("@backoffice:user", JSON.stringify(response.data.user));
+      const token = response.data.token;
+      const userData = response.data.user;
+
+      setUser(userData);
+      localStorage.setItem("@backoffice:token", token);
+      localStorage.setItem("@backoffice:user", JSON.stringify(userData));
+
       const savedToken = localStorage.getItem("@backoffice:token");
       const savedUser = localStorage.getItem("@backoffice:user");
       if (!savedToken || !savedUser) {
         throw new Error("Falha ao persistir os dados tente novamente.");
       }
+
+      // Definir token no client HTTP antes de navegar ou de qualquer request (evita 401 na primeira carga do backoffice)
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
       setIsAuthenticate(true);
       return response.data;
     } catch (err) {
       console.error(err);
       localStorage.removeItem("@backoffice:token");
+      delete api.defaults.headers.common["Authorization"];
       throw new Error("Credenciais inválidas");
     }
   };
@@ -102,6 +111,7 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
       localStorage.removeItem("@stricv2:account");
       localStorage.removeItem("@stricv2:user");
       sessionStorage.clear();
+      delete api.defaults.headers.common["Authorization"];
       setIsAuthenticate(false);
       if (redirectToSessionExpired) {
         const path = window.location.pathname || "";
@@ -112,6 +122,7 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
       console.error("Erro durante logout:", error);
       localStorage.clear();
       sessionStorage.clear();
+      delete api.defaults.headers.common["Authorization"];
       setIsAuthenticate(false);
       if (redirectToSessionExpired) {
         window.location.href = "/session-expired/backoffice";
@@ -144,7 +155,8 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
     const userString = localStorage.getItem("@backoffice:user");
 
     if (!token || !userString) {
-      onLogout(true);
+      // Sem token/user: só desloga e deixa o app redirecionar para login (não manda para session-expired)
+      onLogout(false);
       return;
     }
 
@@ -161,8 +173,9 @@ const AuthBackofficeProvider = ({ children }: AuthBackofficeProviderProps) => {
     } catch (err: any) {
       const status = err.response?.status;
       const code = err.response?.data?.code;
-      if (status === 401 && code === "SESSION_EXPIRED") {
-        onLogout(true);
+      // Token inválido ou sessão expirada ao validar: só desloga e redireciona para login (não para session-expired)
+      if (status === 401 || code === "SESSION_EXPIRED") {
+        onLogout(false);
       } else {
         setIsAuthenticate(false);
       }

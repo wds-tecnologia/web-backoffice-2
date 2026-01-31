@@ -335,7 +335,9 @@ export function MultiInvoiceReviewModal({
     await executeAction(async () => {
       const now = new Date();
       const time = now.toTimeString().split(" ")[0];
-      const dateWithTime = new Date(`${currentData.invoiceData.date}T${time}`);
+      const dateStr = currentData.invoiceData?.date || now.toLocaleDateString("en-CA");
+      const dateWithTime = new Date(`${dateStr}T${time}`);
+      const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
       const products = currentData.products.map((p) => ({
         id: p.validation.productId || p.sku,
@@ -352,7 +354,7 @@ export function MultiInvoiceReviewModal({
       const payload = {
         id: null,
         number: currentData.invoiceData.number,
-        date: dateWithTime,
+        date: dateForApi,
         supplierId: defaultInvoice.supplierId,
         carrierId: defaultInvoice.carrierId || "",
         carrier2Id: defaultInvoice.carrier2Id || "",
