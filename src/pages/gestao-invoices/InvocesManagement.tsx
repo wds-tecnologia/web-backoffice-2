@@ -48,7 +48,7 @@ export const permissionTabMap: Record<string, TabType> = {
 export default function InvocesManagement() {
   const [activeTab, setActiveTab] = useState<TabType>("");
   const { getPermissions, permissions, user } = usePermissionStore();
-  const [currentInvoice, setCurrentInvoice] = useState<Invoice>({
+  const defaultEmptyInvoice = (): Invoice => ({
     id: null,
     number: "",
     date: new Date().toLocaleDateString("en-CA"),
@@ -68,6 +68,33 @@ export default function InvocesManagement() {
     overallValue: 0,
     subAmount: 0,
   });
+  const [draftInvoices, setDraftInvoices] = useState<Invoice[]>([defaultEmptyInvoice()]);
+  const [activeDraftIndex, setActiveDraftIndex] = useState(0);
+  const currentInvoice = draftInvoices[activeDraftIndex] ?? defaultEmptyInvoice();
+  const setCurrentInvoice = (inv: Invoice | ((prev: Invoice) => Invoice)) => {
+    setDraftInvoices((prev) => {
+      const next = [...prev];
+      const current = next[activeDraftIndex];
+      next[activeDraftIndex] = typeof inv === "function" ? inv(current) : inv;
+      return next;
+    });
+  };
+  const handleAddDraftInvoices = (invoices: Invoice[]) => {
+    setDraftInvoices(invoices.length > 0 ? invoices : [defaultEmptyInvoice()]);
+    setActiveDraftIndex(0);
+  };
+  const handleDraftSaved = () => {
+    setDraftInvoices((prev) => {
+      const next = prev.filter((_, i) => i !== activeDraftIndex);
+      if (next.length === 0) return [defaultEmptyInvoice()];
+      return next;
+    });
+    setActiveDraftIndex((prev) => {
+      const newLen = draftInvoices.length - 1;
+      if (newLen <= 0) return 0;
+      return Math.min(prev, newLen - 1);
+    });
+  };
 
   // Função para buscar o próximo número de invoice
   const fetchNextInvoiceNumber = async () => {
@@ -135,7 +162,15 @@ export default function InvocesManagement() {
 
             <div className="mt-6">
               {activeTab === "invoices" && canShowTab("INVOICES") && (
-                <InvoicesTab currentInvoice={currentInvoice} setCurrentInvoice={setCurrentInvoice} />
+                <InvoicesTab
+                  currentInvoice={currentInvoice}
+                  setCurrentInvoice={setCurrentInvoice}
+                  draftInvoices={draftInvoices}
+                  activeDraftIndex={activeDraftIndex}
+                  setActiveDraftIndex={setActiveDraftIndex}
+                  onAddDraftInvoices={handleAddDraftInvoices}
+                  onDraftSaved={handleDraftSaved}
+                />
               )}
               {activeTab === "products" && canShowTab("PRODUTOS") && <ProductsTab />}
               {activeTab === "suppliers" && canShowTab("FORNECEDORES") && <SuppliersTab />}
