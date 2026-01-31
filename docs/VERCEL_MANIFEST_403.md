@@ -10,12 +10,16 @@
 
 O **Vercel Firewall / Attack Challenge Mode** (ponto de verificação de segurança) pode bloquear ou atrasar requisições a arquivos estáticos como `manifest.json` até que o navegador seja “verificado”. Durante esse checkpoint ou em certas condições (ex.: crawlers, requisições sem referrer/cookies), a Vercel pode responder **403** para esses recursos.
 
+## Solução atual: link do manifest removido
+
+- O **`<link rel="manifest">` foi removido** do `public/index.html`.
+- Sem esse link, o navegador **não faz** requisição de manifest → **não há 403** no console.
+
+**Se ainda aparecer 403 em `/api/manifest` ou `manifest.json`:** é cache. Faça **deploy** da versão atual e depois **hard refresh** (`Ctrl+Shift+R` ou `Cmd+Shift+R`) ou limpe os dados do site (DevTools → Application → Clear site data).
+
 ## O que foi feito no projeto
 
-1. **Manifest servido por função serverless** (contorna 403 em arquivo estático):
-   - **`api/manifest.js`**: função serverless que retorna o JSON do manifest com headers corretos (`Content-Type: application/manifest+json`, `Access-Control-Allow-Origin: *`, `Cache-Control`).
-   - **`vercel.json`**: `rewrites` com `source: "/manifest.json"` e `destination: "/api/manifest"`. Assim, quem pede `/manifest.json` recebe a resposta da função em vez do arquivo estático, evitando o bloqueio do Firewall/Checkpoint da Vercel.
-
+1. **Manifest removido do HTML** (solução definitiva para o 403).
 2. **React Router** em `src/index.js`:
    - Flags de futuro `v7_startTransition` e `v7_relativeSplatPath` para eliminar os avisos de depreciação do React Router no console.
 
