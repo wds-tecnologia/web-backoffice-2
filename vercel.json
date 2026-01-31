@@ -1,13 +1,11 @@
 {
-  "headers": [
+  "rewrites": [
     {
       "source": "/manifest.json",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Content-Type", "value": "application/manifest+json" }
-      ]
-    },
+      "destination": "/api/manifest"
+    }
+  ],
+  "headers": [
     {
       "source": "/(.*)",
       "headers": [
