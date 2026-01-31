@@ -14,10 +14,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const cacheNames = await caches.keys();
+      let deletedAny = false;
       await Promise.all(
         cacheNames.map((name) => {
           if (!name.startsWith(CACHE_NAME)) {
             console.log(`🧹 Deletando cache antigo: ${name}`);
+            deletedAny = true;
             return caches.delete(name);
           }
         })
@@ -25,11 +27,13 @@ self.addEventListener('activate', (event) => {
 
       await self.clients.claim();
 
-      // 🔄 Notifica os clients para recarregarem
-      const clients = await self.clients.matchAll({ includeUncontrolled: true });
-      clients.forEach((client) => {
-        client.postMessage({ type: 'RELOAD_PAGE' });
-      });
+      // 🔄 Só notifica reload quando houve atualização (caches antigos deletados), não na primeira instalação (evita reload que quebra login)
+      if (deletedAny) {
+        const clients = await self.clients.matchAll({ includeUncontrolled: true });
+        clients.forEach((client) => {
+          client.postMessage({ type: 'RELOAD_PAGE' });
+        });
+      }
     })()
   );
 });

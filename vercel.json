@@ -1,10 +1,4 @@
 {
-  "rewrites": [
-    {
-      "source": "/manifest.json",
-      "destination": "/api/manifest"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
