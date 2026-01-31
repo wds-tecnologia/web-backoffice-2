@@ -6,15 +6,32 @@ import { useNotification } from "../../../../hooks/notification";
 interface ImportPdfModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Recebe um único objeto (1 PDF) ou array de objetos (múltiplos PDFs) */
   onSuccess: (data: any) => void;
 }
 
 export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { setOpenNotification } = useNotification();
+
+  const addFiles = (files: FileList | File[]) => {
+    const list = Array.from(files || []);
+    const pdfs = list.filter((f) => f.type === "application/pdf");
+    if (pdfs.length < list.length) {
+      setOpenNotification({
+        type: "warning",
+        title: "Arquivo Inválido",
+        notification: "Apenas arquivos PDF são aceitos. Outros foram ignorados.",
+      });
+    }
+    if (pdfs.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...pdfs]);
+    }
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -30,87 +47,84 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      if (file.type === "application/pdf") {
-        setSelectedFile(file);
-      } else {
-        setOpenNotification({
-          type: "warning",
-          title: "Arquivo Inválido",
-          notification: "Por favor, selecione um arquivo PDF",
-        });
-      }
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      addFiles(e.dataTransfer.files);
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.type === "application/pdf") {
-        setSelectedFile(file);
-      } else {
-        setOpenNotification({
-          type: "warning",
-          title: "Arquivo Inválido",
-          notification: "Por favor, selecione um arquivo PDF",
-        });
-      }
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(e.target.files);
     }
   };
 
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0) {
       setOpenNotification({
         type: "warning",
         title: "Atenção",
-        notification: "Selecione um arquivo PDF para importar",
+        notification: "Selecione ao menos um arquivo PDF para importar",
       });
       return;
     }
 
     setIsUploading(true);
+    setUploadProgress({ current: 0, total: selectedFiles.length });
 
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+    const results: any[] = [];
+    const errors: { name: string; message: string }[] = [];
 
-      const response = await api.post("/invoice/import-from-pdf", formData);
-      // Nota: Axios define automaticamente o Content-Type como multipart/form-data com o boundary correto
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      setUploadProgress({ current: i + 1, total: selectedFiles.length });
 
-      setOpenNotification({
-        type: "success",
-        title: "Sucesso!",
-        notification: `PDF processado com sucesso! ${response.data.summary.totalProducts} produtos encontrados.`,
-      });
-
-      onSuccess(response.data);
-      handleClose();
-    } catch (error: any) {
-      console.error("Erro ao importar PDF:", error);
-      
-      let errorMessage = "Erro ao processar o PDF. Tente novamente.";
-      
-      if (error.response?.status === 404) {
-        errorMessage = "Endpoint de importação de PDF não encontrado. Verifique se o backend está atualizado.";
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await api.post("/invoice/import-from-pdf", formData);
+        results.push(response.data);
+      } catch (error: any) {
+        const msg =
+          error.response?.data?.message ||
+          (error.response?.status === 404
+            ? "Endpoint não encontrado"
+            : "Erro ao processar o PDF.");
+        errors.push({ name: file.name, message: msg });
       }
-      
+    }
+
+    setIsUploading(false);
+
+    if (errors.length > 0) {
       setOpenNotification({
         type: "error",
-        title: "Erro ao Importar PDF",
-        notification: errorMessage,
+        title: "Erro em alguns arquivos",
+        notification: `${errors.length} de ${selectedFiles.length} falharam: ${errors.map((e) => e.name).join(", ")}`,
       });
-    } finally {
-      setIsUploading(false);
+    }
+
+    if (results.length > 0) {
+      setOpenNotification({
+        type: "success",
+        title: "Importação concluída",
+        notification:
+          results.length === 1
+            ? `1 PDF processado! ${results[0].summary?.totalProducts ?? 0} produtos.`
+            : `${results.length} PDFs processados. Revisando o primeiro; os demais na sequência.`,
+      });
+      onSuccess(results.length === 1 ? results[0] : results);
+      handleClose();
     }
   };
 
   const handleClose = () => {
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setDragActive(false);
+    setUploadProgress({ current: 0, total: 0 });
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -160,51 +174,58 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf"
+            accept=".pdf,application/pdf"
+            multiple
             onChange={handleFileChange}
             className="hidden"
             id="pdf-upload"
             disabled={isUploading}
           />
 
-          {!selectedFile ? (
+          {selectedFiles.length === 0 ? (
             <>
               <div className="flex justify-center mb-4">
                 <Upload size={48} className="text-gray-400" />
               </div>
               <p className="text-lg font-medium text-gray-700 mb-2">
-                Arraste e solte o PDF aqui
+                Arraste e solte os PDFs aqui
               </p>
               <p className="text-sm text-gray-500 mb-4">ou</p>
               <label
                 htmlFor="pdf-upload"
                 className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg cursor-pointer transition-colors"
               >
-                Selecionar Arquivo
+                Selecionar Arquivo(s)
               </label>
-              <p className="text-xs text-gray-400 mt-4">Apenas arquivos PDF são aceitos</p>
+              <p className="text-xs text-gray-400 mt-4">Apenas arquivos PDF são aceitos. Múltiplos permitidos.</p>
             </>
           ) : (
-            <div className="flex items-center justify-center gap-4">
-              <FileText size={32} className="text-red-600" />
-              <div className="text-left">
-                <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-sm text-gray-500">
-                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {selectedFiles.map((file, index) => (
+                <div key={`${file.name}-${index}`} className="flex items-center justify-between gap-2 bg-gray-50 rounded p-2">
+                  <FileText size={20} className="text-red-600 flex-shrink-0" />
+                  <div className="text-left min-w-0 flex-1">
+                    <p className="font-medium text-gray-900 truncate">{file.name}</p>
+                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                  {!isUploading && (
+                    <button
+                      type="button"
+                      onClick={() => removeFile(index)}
+                      className="text-red-600 hover:text-red-700 flex-shrink-0"
+                    >
+                      <X size={18} />
+                    </button>
+                  )}
+                </div>
+              ))}
               {!isUploading && (
-                <button
-                  onClick={() => {
-                    setSelectedFile(null);
-                    if (fileInputRef.current) {
-                      fileInputRef.current.value = "";
-                    }
-                  }}
-                  className="text-red-600 hover:text-red-700"
+                <label
+                  htmlFor="pdf-upload"
+                  className="block text-center text-sm text-blue-600 hover:text-blue-700 cursor-pointer"
                 >
-                  <X size={20} />
-                </button>
+                  + Adicionar mais PDFs
+                </label>
               )}
             </div>
           )}
@@ -238,18 +259,18 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
           </button>
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading}
+            disabled={selectedFiles.length === 0 || isUploading}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isUploading ? (
               <>
                 <Loader2 className="animate-spin" size={18} />
-                Processando...
+                Processando {uploadProgress.current}/{uploadProgress.total}...
               </>
             ) : (
               <>
                 <Upload size={18} />
-                Importar
+                Importar {selectedFiles.length > 0 ? `(${selectedFiles.length})` : ""}
               </>
             )}
           </button>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, Save, AlertTriangle, Package, Check, ChevronDown, ChevronUp } from "lucide-react";
 import Swal from "sweetalert2";
 
@@ -48,6 +48,14 @@ interface ReviewPdfModalProps {
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
   const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
+
+  // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
+  useEffect(() => {
+    if (isOpen && pdfData) {
+      setEditedData(pdfData);
+      setExpandedProducts(new Set());
+    }
+  }, [isOpen, pdfData]);
 
   if (!isOpen || !pdfData || !editedData) return null;
 

@@ -50,6 +50,8 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   const [showImportModal, setShowImportModal] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [pdfData, setPdfData] = useState<any>(null);
+  /** Fila de PDFs restantes ao importar em massa (revisão um a um) */
+  const [pdfDataQueue, setPdfDataQueue] = useState<any[]>([]);
   const [productForm, setProductForm] = useState({
     productId: "",
     quantity: "",
@@ -211,7 +213,10 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
   };
 
   const handleImportSuccess = (data: any) => {
-    setPdfData(data);
+    const list = Array.isArray(data) ? data : [data];
+    if (list.length === 0) return;
+    setPdfData(list[0]);
+    setPdfDataQueue(list.slice(1));
     setShowReviewModal(true);
   };
 
@@ -247,14 +252,21 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         products: [...currentInvoice.products, ...newProducts],
       });
 
-      // Guardar dados do PDF para salvar IMEIs depois
-      setPdfData(editedData);
-
-      setOpenNotification({
-        type: "success",
-        title: "Sucesso!",
-        notification: `${newProducts.length} produtos adicionados! Complete os dados e salve a invoice.`,
-      });
+      if (pdfDataQueue.length > 0) {
+        // Mostrar próximo PDF da fila para revisão
+        setPdfData(pdfDataQueue[0]);
+        setPdfDataQueue((prev) => prev.slice(1));
+        setShowReviewModal(true);
+      } else {
+        // Fila vazia: guardar último PDF para IMEIs e notificar
+        setPdfData(editedData);
+        setPdfDataQueue([]);
+        setOpenNotification({
+          type: "success",
+          title: "Sucesso!",
+          notification: `${newProducts.length} produtos adicionados! Complete os dados e salve a invoice.`,
+        });
+      }
     } catch (error) {
       console.error("Erro ao processar dados do PDF:", error);
       setOpenNotification({
@@ -544,7 +556,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       />
       <ReviewPdfModal
         isOpen={showReviewModal}
-        onClose={() => setShowReviewModal(false)}
+        onClose={() => {
+          setShowReviewModal(false);
+          setPdfData(null);
+          setPdfDataQueue([]);
+        }}
         pdfData={pdfData}
         onConfirm={handleConfirmPdf}
       />
