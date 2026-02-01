@@ -70,4 +70,7 @@ Similar ao ProductAlias, o **SupplierAlias** vincula o nome do fornecedor como a
 - **findSupplierIdByAlias(pdfSupplierName):** normaliza (trim().toLowerCase()) e busca em SupplierAlias; retorna supplierId ou null.
 - **Resposta:** Após extrair invoiceData, se houver alias correspondente, `invoiceData.supplierId` é preenchido e incluído na resposta de `POST /invoice/import-from-pdf`.
 
-**Frontend:** Usa `invoiceData.supplierId` quando presente; bloqueia o campo fornecedor (`_isSupplierFromPdf`) quando o fornecedor foi reconhecido pelo alias.
+**Frontend:**
+- Usa `invoiceData.supplierId` quando presente; bloqueia o campo fornecedor (`_isSupplierFromPdf`) quando o fornecedor foi reconhecido pelo alias.
+- Durante o import (ReviewPdfModal, MultiInvoiceReviewModal): quando `supplierId` **não** vem do backend, exibe seletor de fornecedor e input "Nome na nota". Ao vincular, chama `POST /invoice/supplier/alias` para salvar o vínculo.
+- **Backend deve retornar** `invoiceData.pdfSupplierName` quando `supplierId` for null, para pré-preencher o nome e salvar o alias ao vincular.
