@@ -97,6 +97,12 @@ AMOUNT: 6900.00
 
 ---
 
+## Ordem dos produtos na resposta
+
+**Exceção importante:** Os itens em `products` devem vir na **ordem original da invoice** (como aparecem no PDF), **não em ordem alfabética**. O front exibe na ordem recebida; a nota deve ser fiel à sequência da invoice.
+
+---
+
 ## Solução: Separar por Variante
 
 **Backend DEVE retornar (CORRETO ✅):**

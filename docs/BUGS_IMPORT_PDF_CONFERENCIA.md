@@ -12,12 +12,22 @@ Documento para enviar ao backend junto com o PDF `public/Invoice 2272 (2).pdf` p
 
 ## Produtos com erro (detalhado)
 
-### 1. I15128P2 APPLE - IPHONE 15 128GB P2
+### 1. I15128P2 APPLE - IPHONE 15 128GB P2 (Print 2 vs Print 3)
 
-**Retornado pelo backend:**
-- Nome: `I15128P2 APPLE - IPHONE 15 128GB P2 02 PINK: BLACK`
-- Qtd: 5
-- IMEIs: 1
+**O que está no PDF (correto – Print 2):**
+- Descrição: `APPLE - IPHONE 15 128GB P2` com **02 PINK:**
+- Abaixo de "02 PINK:" vêm **2 IMEIs**: `357004285459302` e `351698476259425`
+- Ou seja: **2 unidades PINK, 2 IMEIs** (2 × 435,00 = 870,00)
+
+**O que o extrator retornou (errado – Print 3):**
+- Nome: `I15128P2 APPLE - IPHONE 15 128GB P2 BLACK` (ou variante com "02 PINK: BLACK")
+- Qtd: **5**
+- IMEIs: **1**
+
+**Resumo do bug:** O PDF tem **2 PINK e 2 IMEIs**. O sistema extraiu **5 BLACK e 1 IMEI**. O extrator está:
+1. Trocar/ignorar a variante PINK e usar BLACK.
+2. Errar a quantidade (5 em vez de 2).
+3. Agrupar/associar só 1 IMEI em vez de 2.
 
 **Correto (conforme PDF):**
 - **PINK:** 2 unidades, 2 IMEIs
@@ -84,6 +94,14 @@ Documento para enviar ao backend junto com o PDF `public/Invoice 2272 (2).pdf` p
 **Caminho no projeto:** `D:\Atacadao 2025\Black Rabbit\web-backoffice-2\public\Invoice 2272 (2).pdf`
 
 Usar este PDF para conferir a estrutura real da DESCRIPTION e validar o parser.
+
+---
+
+## Ordem dos produtos (exceção importante)
+
+**Os produtos da nota devem vir na ordem original da invoice, fiel ao PDF – não em ordem alfabética.**
+
+O array `products` retornado por `POST /invoice/import-from-pdf` deve refletir a sequência em que os itens aparecem na invoice. O front não reordena; qualquer ordenação alfabética no backend quebra essa fidelidade.
 
 ---
 
