@@ -319,77 +319,19 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     try {
       setShowReviewModal(false);
 
-      // Converter data para o formato correto (YYYY-MM-DD) se necessário
-      let formattedDate = editedData.invoiceData.date;
-      let dateFromPdf = false;
+      // ✅ Sempre usar a data de hoje (data de criação) ao importar PDF, não a data extraída do PDF
+      // A data do PDF é apenas informativa; a invoice deve ser criada com a data de hoje
+      const formattedDate = new Date().toLocaleDateString("en-CA"); // Sempre data de hoje
+      const dateFromPdf = false; // Não vem do PDF, é a data de criação
       
-      // Debug: verificar o que o backend retornou
-      console.log(`[Import PDF] Invoice ${editedData.invoiceData?.number} - Data do backend:`, editedData.invoiceData?.date);
-      
-      if (formattedDate && formattedDate.trim() !== "") {
-        dateFromPdf = true;
-        // Se a data estiver em formato DD/MM/YYYY ou MM/DD/YYYY, converter para YYYY-MM-DD
-        if (formattedDate.includes('/')) {
-          const parts = formattedDate.split('/');
-          // Tentar detectar o formato
-          if (parts[2]?.length === 4) {
-            // DD/MM/YYYY ou MM/DD/YYYY
-            if (parseInt(parts[0]) > 12) {
-              // É DD/MM/YYYY
-              formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            } else if (parseInt(parts[1]) > 12) {
-              // É MM/DD/YYYY
-              formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-            } else {
-              // Assumir MM/DD/YYYY (formato americano comum em invoices)
-              formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-            }
-          }
-        } else if (formattedDate.includes('-')) {
-          // Verificar se já está no formato correto YYYY-MM-DD
-          const parts = formattedDate.split('-');
-          if (parts[0]?.length === 4) {
-            // Já está em YYYY-MM-DD, manter como está
-          } else if (parts[2]?.length === 4) {
-            // DD-MM-YYYY, converter
-            formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          }
-        }
-        
-        // Validar se a data é válida
-        const testDate = new Date(formattedDate);
-        if (isNaN(testDate.getTime())) {
-          // Data inválida, usar data atual
-          console.warn(`[Import PDF] Data inválida após conversão: ${formattedDate}, usando data atual`);
-          formattedDate = new Date().toLocaleDateString("en-CA");
-          dateFromPdf = false;
-        } else {
-          console.log(`[Import PDF] Data convertida com sucesso: ${formattedDate}`);
-        }
-      } else {
-        // Se não tem data, usar data atual
-        console.warn(`[Import PDF] Backend não retornou data para invoice ${editedData.invoiceData?.number}, usando data atual`);
-        formattedDate = new Date().toLocaleDateString("en-CA");
-        dateFromPdf = false;
-      }
+      console.log(`[Import PDF] Invoice ${editedData.invoiceData?.number} - Usando data de criação (hoje):`, formattedDate);
 
       const supplierFromPdf = editedData.invoiceData?.supplierId;
       // Quando vem do PDF (importação), sempre bloquear os 3 campos mesmo que não tenha vínculo de fornecedor ainda
       const hasPdfSupplierName = !!(editedData.invoiceData?.pdfSupplierName?.trim());
       const hasPdfNumber = !!(editedData.invoiceData?.number?.trim());
 
-      // Preencher número, data e fornecedor da invoice automaticamente (bloqueados quando vêm do PDF)
-      setCurrentInvoice({
-        ...currentInvoice,
-        number: editedData.invoiceData.number,
-        date: formattedDate,
-        supplierId: supplierFromPdf ?? currentInvoice.supplierId,
-        _isDateFromPdf: dateFromPdf, // true quando data veio do PDF
-        _isNumberFromPdf: hasPdfNumber, // true quando número veio do PDF (sempre vem quando é importação)
-        _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName, // Bloquear se tem supplierId OU se tem pdfSupplierName (veio do PDF)
-      });
-
-      // Adicionar produtos do PDF ao currentInvoice (sku não vem mais; usar só validation.productId)
+      // ✅ Converter PDF em Invoice e adicionar como nova aba (nunca sobrescrever invoices existentes)
       const newProducts = editedData.products.map((pdfProduct: any) => ({
         id: pdfProduct.validation?.productId ?? "",
         productId: pdfProduct.validation?.productId ?? "",
@@ -405,31 +347,51 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         _imeis: pdfProduct.imeis || [],
       }));
 
-      setCurrentInvoice({
-        ...currentInvoice,
+      const newInvoice: Invoice = {
+        id: null,
         number: editedData.invoiceData.number,
         date: formattedDate,
-        supplierId: supplierFromPdf ?? currentInvoice.supplierId,
-        products: [...currentInvoice.products, ...newProducts],
-        _isDateFromPdf: dateFromPdf, // true quando data veio do PDF
-        _isNumberFromPdf: hasPdfNumber, // true quando número veio do PDF (sempre vem quando é importação)
-        _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName, // Bloquear se tem supplierId OU se tem pdfSupplierName (veio do PDF)
-      });
+        supplierId: supplierFromPdf ?? currentInvoice.supplierId ?? "",
+        products: newProducts,
+        carrierId: currentInvoice.carrierId ?? "",
+        carrier2Id: currentInvoice.carrier2Id ?? "",
+        taxaSpEs: currentInvoice.taxaSpEs ?? "0",
+        amountTaxcarrier: 0,
+        amountTaxcarrier2: 0,
+        amountTaxSpEs: 0,
+        subAmount: 0,
+        overallValue: 0,
+        paid: false,
+        paidDate: null,
+        paidDollarRate: null,
+        completed: false,
+        completedDate: null,
+        _isDateFromPdf: dateFromPdf,
+        _isNumberFromPdf: hasPdfNumber,
+        _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName,
+      };
 
-      if (pdfDataQueue.length > 0) {
-        // Mostrar próximo PDF da fila para revisão
-        setPdfData(pdfDataQueue[0]);
-        setPdfDataQueue((prev) => prev.slice(1));
-        setShowReviewModal(true);
+      // ✅ Adicionar como nova aba (nunca sobrescrever invoices existentes)
+      if (props.onAddDraftInvoices) {
+        props.onAddDraftInvoices([newInvoice]);
+        setOpenNotification({
+          type: "success",
+          title: "Invoice adicionada!",
+          notification: `Invoice ${editedData.invoiceData.number} adicionada como nova aba. Complete os dados e salve quando estiver pronto.`,
+        });
       } else {
-        // Fila vazia: guardar último PDF para IMEIs e notificar
-        setPdfData(editedData);
-        setPdfDataQueue([]);
+        // Fallback: se não houver onAddDraftInvoices, usar o comportamento antigo (não recomendado)
+        setCurrentInvoice(newInvoice);
         setOpenNotification({
           type: "success",
           title: "Sucesso!",
           notification: `${newProducts.length} produtos adicionados! Complete os dados e salve a invoice.`,
         });
+      }
+      
+      // Limpar fila de PDFs se houver
+      if (pdfDataQueue.length > 0) {
+        setPdfDataQueue([]);
       }
     } catch (error) {
       console.error("Erro ao processar dados do PDF:", error);

@@ -3,9 +3,9 @@ import { NewInvoiceForm } from "./NewInvoiceForm";
 import { InvoiceProducts } from "./InvoiceProducts";
 import { InvoiceHistory } from "./InvoiceHistory";
 import { Invoice } from "../types/invoice";
-import { FileText } from "lucide-react";
+import { FileText, X } from "lucide-react";
 
-interface NewInvoiceFormProps {
+interface InvoicesTabProps {
   currentInvoice: Invoice;
   setCurrentInvoice: (invoice: Invoice | ((prev: Invoice) => Invoice)) => void;
   draftInvoices?: Invoice[];
@@ -13,6 +13,7 @@ interface NewInvoiceFormProps {
   setActiveDraftIndex?: (index: number) => void;
   onAddDraftInvoices?: (invoices: Invoice[]) => void;
   onDraftSaved?: () => void;
+  onRemoveDraftInvoice?: (index: number) => void;
 }
 
 export function InvoicesTab({
@@ -23,7 +24,8 @@ export function InvoicesTab({
   setActiveDraftIndex,
   onAddDraftInvoices,
   onDraftSaved,
-}: NewInvoiceFormProps) {
+  onRemoveDraftInvoice,
+}: InvoicesTabProps) {
   const [reloadInvoices, setReloadInvoices] = useState(false);
   const showDraftTabs = draftInvoices.length > 1;
 
@@ -37,19 +39,36 @@ export function InvoicesTab({
               const isActive = index === activeDraftIndex;
               const num = draft.number || `#${index + 1}`;
               return (
-                <button
+                <div
                   key={index}
-                  type="button"
-                  onClick={() => setActiveDraftIndex?.(index)}
                   className={`px-4 py-2.5 rounded-t-lg border-b-2 font-medium transition-colors flex items-center gap-2 ${
                     isActive
                       ? "border-blue-600 bg-white text-blue-700 shadow-sm -mb-px"
                       : "border-transparent bg-white/70 text-gray-600 hover:bg-white hover:text-blue-600"
                   }`}
                 >
-                  <FileText size={16} />
-                  Invoice {num}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveDraftIndex?.(index)}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText size={16} />
+                    Invoice {num}
+                  </button>
+                  {onRemoveDraftInvoice && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onRemoveDraftInvoice(index);
+                      }}
+                      className="ml-1 p-0.5 rounded hover:bg-red-100 text-gray-500 hover:text-red-600 transition-colors"
+                      title="Fechar invoice"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

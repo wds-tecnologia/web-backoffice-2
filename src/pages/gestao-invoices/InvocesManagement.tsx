@@ -99,6 +99,24 @@ export default function InvocesManagement() {
     });
   };
 
+  /** Remove uma invoice específica das abas pelo índice */
+  const handleRemoveDraftInvoice = (indexToRemove: number) => {
+    setDraftInvoices((prev) => {
+      const next = prev.filter((_, i) => i !== indexToRemove);
+      if (next.length === 0) return [defaultEmptyInvoice()];
+      return next;
+    });
+    setActiveDraftIndex((prev) => {
+      const newLen = draftInvoices.length - 1;
+      if (newLen <= 0) return 0;
+      // Se a invoice removida era a ativa ou estava antes dela, ajustar o índice
+      if (indexToRemove <= prev) {
+        return Math.max(0, prev - 1);
+      }
+      return prev;
+    });
+  };
+
   // Função para buscar o próximo número de invoice
   const fetchNextInvoiceNumber = async () => {
     try {
@@ -173,6 +191,7 @@ export default function InvocesManagement() {
                   setActiveDraftIndex={setActiveDraftIndex}
                   onAddDraftInvoices={handleAddDraftInvoices}
                   onDraftSaved={handleDraftSaved}
+                  onRemoveDraftInvoice={handleRemoveDraftInvoice}
                 />
               )}
               {activeTab === "products" && canShowTab("PRODUTOS") && <ProductsTab />}

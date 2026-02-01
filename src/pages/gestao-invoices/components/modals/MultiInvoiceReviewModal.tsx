@@ -450,7 +450,8 @@ export function MultiInvoiceReviewModal({
     await executeAction(async () => {
       const now = new Date();
       const time = now.toTimeString().split(" ")[0];
-      const dateStr = currentData.invoiceData?.date || now.toLocaleDateString("en-CA");
+      // ✅ Sempre usar a data de hoje (data de criação) ao salvar invoice via PDF, não a data extraída do PDF
+      const dateStr = now.toLocaleDateString("en-CA"); // Data de hoje, não do PDF
       const dateWithTime = new Date(`${dateStr}T${time}`);
       const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 

@@ -161,6 +161,14 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
           "📋 [INVOICE HISTORY] Invoices não completas (detalhes):",
           notCompleted.map((inv: any) => ({ id: inv.id, number: inv.number, paid: inv.paid, completed: inv.completed }))
         );
+        
+        // Debug: verificar quantas passam pelo filtro final (não completas E não pagas)
+        const notCompletedAndNotPaid = invoiceResponse.data.filter((inv: any) => !inv.completed && !inv.paid);
+        console.log("📋 [INVOICE HISTORY] Invoices não completas E não pagas (que aparecerão na lista):", notCompletedAndNotPaid.length);
+        console.log(
+          "📋 [INVOICE HISTORY] Invoices não completas E não pagas (detalhes):",
+          notCompletedAndNotPaid.map((inv: any) => ({ id: inv.id, number: inv.number, paid: inv.paid, completed: inv.completed }))
+        );
       }
       // O backend agora retorna { products: [...], totalProducts: ..., page: ..., limit: ..., totalPages: ... }
       setProducts(Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data.products || []);
@@ -448,7 +456,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                 </tr>
               ) : (
                 invoices
-                  .filter((invoice) => !invoice.completed) // ✅ Mostrar todas as invoices não completas (independente de estarem pagas ou não)
+                  .filter((invoice) => !invoice.completed && !invoice.paid) // ✅ Regra de negócio: mostrar apenas não concluídas E não pagas (apenas pendentes)
                   .slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage) // ✅ Paginação
                   .map((invoice) => {
                     const supplier = suppliers.find((s) => s.id === invoice.supplierId);
