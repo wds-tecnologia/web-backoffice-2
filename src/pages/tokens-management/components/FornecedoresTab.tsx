@@ -143,12 +143,46 @@ const FornecedoresTab: React.FC = () => {
   const abrirCaixa = async (fornecedor: Fornecedor) => {
     setFornecedorSelecionado(fornecedor);
     try {
-      const [fornecedorResponse, paymentsResponse] = await Promise.all([
+      const [fornecedorResponse, paymentsResponse, invoicesResponse] = await Promise.all([
         api.get<Fornecedor>(`/suppliers/list_supplier/${fornecedor.id}`),
         api.get<Payment[]>(`/api/payments?supplierId=${fornecedor.id}`),
+        api.get<any[]>(`/invoice/list/supplier/${fornecedor.id}`),
       ]);
 
+      // 🔍 DEBUG: Verificar se há duplicação no banco ou apenas na renderização
+      console.log("🔍 [FORNECEDOR CAIXA] Fornecedor ID:", fornecedor.id);
+      console.log("🔍 [FORNECEDOR CAIXA] Transações do fornecedor (de /suppliers/list_supplier):", fornecedorResponse.data.transacoes);
+      console.log("🔍 [FORNECEDOR CAIXA] Invoices do endpoint (/invoice/list/supplier):", invoicesResponse.data);
+      
+      // Verificar se há invoices nas transações do fornecedor
+      const invoicesNasTransacoes = (fornecedorResponse.data.transacoes || []).filter((t: Transacao) => 
+        t.descricao.toUpperCase().includes("INVOICE") || 
+        t.descricao.toUpperCase().includes("INV-") ||
+        /^(INV-)?\d+/.test(t.descricao)
+      );
+      console.log("🔍 [FORNECEDOR CAIXA] Invoices encontradas nas transações do fornecedor:", invoicesNasTransacoes);
+      
+      // Verificar IDs únicos das invoices
+      const invoiceIdsDoEndpoint = (invoicesResponse.data || []).map((inv: any) => inv.id);
+      const invoiceNumbersDoEndpoint = (invoicesResponse.data || []).map((inv: any) => inv.number);
+      console.log("🔍 [FORNECEDOR CAIXA] IDs únicos das invoices (do endpoint):", invoiceIdsDoEndpoint);
+      console.log("🔍 [FORNECEDOR CAIXA] Números únicos das invoices (do endpoint):", invoiceNumbersDoEndpoint);
+      
+      // Verificar se há duplicação no array de invoices retornado pelo endpoint
+      const invoiceIdsSet = new Set(invoiceIdsDoEndpoint);
+      const invoiceNumbersSet = new Set(invoiceNumbersDoEndpoint);
+      if (invoiceIdsDoEndpoint.length !== invoiceIdsSet.size) {
+        console.warn("⚠️ [FORNECEDOR CAIXA] DUPLICAÇÃO NO BANCO: Há invoices com IDs duplicados no endpoint!");
+      }
+      if (invoiceNumbersDoEndpoint.length !== invoiceNumbersSet.size) {
+        console.warn("⚠️ [FORNECEDOR CAIXA] DUPLICAÇÃO NO BANCO: Há invoices com números duplicados no endpoint!");
+      }
+      if (invoiceIdsDoEndpoint.length === invoiceIdsSet.size && invoiceNumbersDoEndpoint.length === invoiceNumbersSet.size) {
+        console.log("✅ [FORNECEDOR CAIXA] Não há duplicação no banco - problema era apenas de renderização");
+      }
+
       setFornecedorSelecionado(fornecedorResponse.data);
+      setInvoices(invoicesResponse.data || []);
 
       setPayments((prev) => {
         const updatedPayments = [...prev.filter((p) => p.supplierId !== fornecedor.id), ...paymentsResponse.data];
@@ -308,8 +342,51 @@ const FornecedoresTab: React.FC = () => {
 
   // ✅ Usar useMemo para recalcular quando as dependências mudarem
   const todasTransacoes = useMemo(() => {
+    // ✅ Obter números de invoices do estado invoices para evitar duplicação
+    const invoiceNumbers = new Set(
+      invoices
+        .filter((inv: any) => inv.supplierId === fornecedorSelecionado?.id)
+        .map((inv: any) => {
+          const num = inv.number || inv.id;
+          // Normalizar: remover espaços e converter para string
+          return String(num).trim().toLowerCase();
+        })
+    );
+
+    // 🔍 DEBUG: Log das invoices do estado
+    console.log("🔍 [TODAS TRANSAÇÕES] Invoices do estado (normalizadas):", Array.from(invoiceNumbers));
+    console.log("🔍 [TODAS TRANSAÇÕES] Total de transações do fornecedor:", fornecedorSelecionado?.transacoes?.length || 0);
+
+    // ✅ Filtrar transações do fornecedor para remover invoices que já estão no estado invoices
+    // (evita duplicação: backend pode retornar invoices em transacoes, mas queremos usar as do estado invoices)
+    const transacoesSemInvoices = (fornecedorSelecionado?.transacoes || []).filter((t: Transacao) => {
+      const descUpper = t.descricao.toUpperCase();
+      
+      // Se a descrição começa com "INVOICE" ou "INV-", é uma invoice
+      const isInvoice = descUpper.startsWith("INVOICE") || 
+                        descUpper.startsWith("INV-") ||
+                        /^(INV-)?\d+/.test(t.descricao); // Padrão: "INV-2247ex" ou "2247ex"
+      
+      if (!isInvoice) return true; // Não é invoice, manter
+      
+      // É invoice: extrair número da invoice da descrição
+      // Padrões possíveis: "INVOICE #2247ex", "INV-2247ex", "2247ex"
+      const invoiceNumberMatch = t.descricao.match(/(?:INVOICE\s*#?|INV-)?(.+)/i);
+      const invoiceNumber = invoiceNumberMatch ? invoiceNumberMatch[1].trim().toLowerCase() : "";
+      
+      // Verificar se já está no estado invoices (comparação normalizada)
+      const jaExiste = invoiceNumbers.has(invoiceNumber);
+      if (jaExiste) {
+        console.log(`🔍 [TODAS TRANSAÇÕES] Removendo invoice duplicada das transações: "${t.descricao}" (número: ${invoiceNumber})`);
+      }
+      return !jaExiste;
+    });
+
+    console.log("🔍 [TODAS TRANSAÇÕES] Transações após filtrar invoices:", transacoesSemInvoices.length);
+    console.log("🔍 [TODAS TRANSAÇÕES] Invoices que serão adicionadas do estado:", invoices.filter((inv: any) => inv.supplierId === fornecedorSelecionado?.id).length);
+
     return [
-      ...(fornecedorSelecionado?.transacoes || []),
+      ...transacoesSemInvoices,
       ...operacoes
         .filter((op) => op.supplierId === fornecedorSelecionado?.id && op.comission !== 0 && op.comission === null)
         .map((op) => ({

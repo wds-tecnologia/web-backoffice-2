@@ -539,9 +539,141 @@ export function MultiInvoiceReviewModal({
   };
 
   const handleClose = () => {
-    if (!allSaved) return;
-    onAllSaved?.();
     onClose();
+  };
+
+  // ✅ Salvar todas as invoices de uma vez
+  const handleConfirmAndCreateAll = async () => {
+    if (!currentData) return;
+    
+    // Validar se todas as invoices têm fornecedor vinculado
+    const invoicesWithoutSupplier = editedDataList.filter((data) => {
+      const finalSupplierId = data.invoiceData?.supplierId ?? defaultInvoice.supplierId;
+      return !finalSupplierId || finalSupplierId.trim() === "";
+    });
+
+    if (invoicesWithoutSupplier.length > 0) {
+      Swal.fire({
+        icon: "error",
+        title: "Fornecedor não vinculado",
+        text: `Por favor, vincule um fornecedor em todas as invoices antes de confirmar. ${invoicesWithoutSupplier.length} invoice(s) ainda sem fornecedor.`,
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
+    await executeAction(async () => {
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      // Salvar cada invoice
+      for (let i = 0; i < editedDataList.length; i++) {
+        const data = editedDataList[i];
+        
+        // Validar número duplicado
+        try {
+          const checkResponse = await api.get("/invoice/exists-by-number", {
+            params: { number: data.invoiceData.number.trim() }
+          });
+          if (checkResponse.data?.exists) {
+            errors.push(`Invoice ${data.invoiceData.number}: número já existe`);
+            errorCount++;
+            continue;
+          }
+        } catch (checkErr) {
+          // Se o endpoint não existir, continua sem validação
+          console.warn("Endpoint de validação de número não disponível, continuando...");
+        }
+
+        try {
+          const now = new Date();
+          const time = now.toTimeString().split(" ")[0];
+          const dateStr = now.toLocaleDateString("en-CA"); // Sempre data de hoje
+          const dateWithTime = new Date(`${dateStr}T${time}`);
+          const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
+
+          const products = data.products.map((p) => ({
+            id: p.validation.productId,
+            name: p.name,
+            quantity: p.quantity,
+            value: p.rate,
+            weight: 0,
+            total: p.amount,
+            received: false,
+            receivedQuantity: 0,
+            imeis: p.imeis || [],
+          }));
+
+          const finalSupplierId = data.invoiceData?.supplierId ?? defaultInvoice.supplierId;
+
+          const payload = {
+            id: null,
+            number: data.invoiceData.number,
+            date: dateForApi,
+            supplierId: finalSupplierId,
+            carrierId: defaultInvoice.carrierId || "",
+            carrier2Id: defaultInvoice.carrier2Id || "",
+            taxaSpEs:
+              defaultInvoice.taxaSpEs == null || defaultInvoice.taxaSpEs === ""
+                ? "0"
+                : String(defaultInvoice.taxaSpEs).trim(),
+            products,
+            paid: false,
+            paidDate: null,
+            paidDollarRate: null,
+            completed: false,
+            completedDate: null,
+            amountTaxcarrier: 0,
+            amountTaxcarrier2: 0,
+            amountTaxSpEs: 0,
+            overallValue: 0,
+            subAmount: 0,
+          };
+
+          await api.post("/invoice/create", payload);
+          successCount++;
+        } catch (err: any) {
+          const errorMsg = err?.response?.data?.message || err?.message || "Erro desconhecido";
+          errors.push(`Invoice ${data.invoiceData.number}: ${errorMsg}`);
+          errorCount++;
+        }
+      }
+
+      // Mostrar resultado
+      if (errorCount === 0) {
+        setOpenNotification({
+          type: "success",
+          title: "Sucesso!",
+          notification: `${successCount} invoice(s) criada(s) com sucesso!`,
+        });
+        onAllSaved?.();
+        onClose();
+      } else {
+        Swal.fire({
+          icon: "warning",
+          title: "Processamento concluído",
+          html: `
+            <p><strong>${successCount}</strong> invoice(s) criada(s) com sucesso.</p>
+            <p><strong>${errorCount}</strong> invoice(s) com erro:</p>
+            <pre class="text-left text-xs bg-gray-100 p-2 rounded mt-2 max-h-40 overflow-y-auto">${errors.join('\n')}</pre>
+          `,
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        if (successCount > 0) {
+          onAllSaved?.();
+          onClose();
+        }
+      }
+    }, "confirmAndCreateAll");
   };
 
   const handleSendToScreen = () => {
@@ -1136,65 +1268,23 @@ export function MultiInvoiceReviewModal({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center gap-4 p-6 border-t bg-gray-50 flex-wrap">
-          <div className="text-sm text-gray-600 max-w-md">
-            {allSaved ? (
-              <span className="text-green-700 font-medium">Todas as invoices foram salvas. Você pode fechar.</span>
-            ) : (
-              <>
-                <span className="block font-medium text-gray-700 mb-1">Dois caminhos:</span>
-                <span className="block">
-                  <strong>Enviar para a tela</strong> — manda todas as invoices para abas na tela principal (rascunho; nada vai pro banco ainda). Depois você salva uma a uma.
-                </span>
-                <span className="block mt-0.5">
-                  <strong>Salvar esta Invoice</strong> — grava só a aba atual no banco agora. Repita para cada aba.
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex gap-3 flex-wrap items-center">
-            {onSendToScreen && (
-              <button
-                type="button"
-                onClick={handleSendToScreen}
-                title="Envia todas as invoices para abas na tela principal, sem salvar no banco. Você salva uma a uma depois."
-                className="px-5 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-              >
-                <LayoutGrid size={18} />
-                Enviar para a tela
-              </button>
-            )}
-            {!savedIndices.has(activeTabIndex) && (
-              <button
-                type="button"
-                onClick={handleSaveThisInvoice}
-                title="Salva a invoice da aba atual no banco de dados (e IMEIs). A aba fica verde."
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              >
-                <Save size={18} />
-                Salvar esta Invoice
-              </button>
-            )}
-            {savedIndices.has(activeTabIndex) && (
-              <span className="px-4 py-2 rounded-lg bg-green-100 text-green-800 flex items-center gap-2">
-                <Check size={18} />
-                Salva
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={!allSaved}
-              className={`px-6 py-2 rounded-lg border transition-colors ${
-                allSaved
-                  ? "border-gray-300 hover:bg-white bg-white"
-                  : "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-              }`}
-            >
-              Fechar
-            </button>
-          </div>
+        {/* Footer - Simplificado: apenas 2 botões */}
+        <div className="flex justify-end items-center gap-3 p-6 border-t bg-gray-50">
+          <button
+            type="button"
+            onClick={handleClose}
+            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-white transition-colors bg-white text-gray-700"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmAndCreateAll}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+          >
+            <Save size={18} />
+            Confirmar e Criar Invoice
+          </button>
         </div>
       </div>
 
