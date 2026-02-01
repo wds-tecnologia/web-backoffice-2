@@ -372,6 +372,23 @@ export function MultiInvoiceReviewModal({
 
   const handleSaveThisInvoice = async () => {
     if (!currentData) return;
+    
+    // ✅ Validar se o fornecedor foi vinculado
+    const finalSupplierId = currentData.invoiceData?.supplierId ?? defaultInvoice.supplierId;
+    if (!finalSupplierId || finalSupplierId.trim() === "") {
+      Swal.fire({
+        icon: "error",
+        title: "Fornecedor não vinculado",
+        text: "Por favor, vincule um fornecedor antes de salvar a invoice.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+    
     if (numberExistsInDb) {
       Swal.fire({
         icon: "error",
@@ -451,11 +468,17 @@ export function MultiInvoiceReviewModal({
         imeis: p.imeis || [],
       }));
 
+      // ✅ Garantir que supplierId não seja vazio (já validado acima)
+      const finalSupplierId = currentData.invoiceData?.supplierId ?? defaultInvoice.supplierId;
+      
+      // ✅ Log para debug
+      console.log(`[MultiInvoiceReviewModal] Salvando invoice ${currentData.invoiceData.number} com supplierId:`, finalSupplierId);
+      
       const payload = {
         id: null,
         number: currentData.invoiceData.number,
         date: dateForApi,
-        supplierId: currentData.invoiceData?.supplierId ?? defaultInvoice.supplierId,
+        supplierId: finalSupplierId, // Já validado acima, não pode ser vazio
         carrierId: defaultInvoice.carrierId || "",
         carrier2Id: defaultInvoice.carrier2Id || "",
         taxaSpEs:
@@ -474,6 +497,9 @@ export function MultiInvoiceReviewModal({
         overallValue: 0,
         subAmount: 0,
       };
+      
+      // ✅ Log para debug
+      console.log(`[MultiInvoiceReviewModal] Salvando invoice ${currentData.invoiceData.number} com supplierId:`, finalSupplierId);
 
       const response = await api.post("/invoice/create", payload);
       const createdInvoice = response.data;
