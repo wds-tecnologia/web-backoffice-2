@@ -107,15 +107,7 @@ export function ImeiSearchTab() {
       setAllImeis(imeisList);
       setFilteredImeis(imeisList);
     } catch (error: any) {
-      console.error("Erro ao carregar lista de IMEIs:", error);
-      const is404 = error?.response?.status === 404;
-      setOpenNotification({
-        type: "error",
-        title: "Erro",
-        notification: is404
-          ? "Listagem de IMEIs não disponível (endpoint não encontrado). Verifique com o backend."
-          : "Erro ao carregar lista de IMEIs",
-      });
+      console.warn("Lista de IMEIs não carregada:", error?.response?.status ?? error?.message);
       setAllImeis([]);
       setFilteredImeis([]);
       setAllImeisData([]);

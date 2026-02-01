@@ -352,12 +352,12 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                 </label>
                 {editedData.invoiceData.supplierId ? (
                   <div className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                    ✅ Identificado automaticamente (nas próximas importações será reconhecido)
+                    ✅ Fornecedor identificado automaticamente (já tinha vínculo; nas próximas importações continua reconhecendo)
                   </div>
                 ) : (
                   <div className="flex flex-wrap gap-3 items-end">
                     <div className="flex-1 min-w-[180px]">
-                      <span className="text-xs text-gray-500 block mb-1">Nome na nota (para salvar vínculo)</span>
+                      <span className="text-xs text-gray-500 block mb-1">Nome na nota (pode vir preenchido pelo PDF; se não, digite para salvar vínculo)</span>
                       <input
                         type="text"
                         placeholder="Ex: DISTRIBUIDORA XYZ (ou deixe em branco)"
@@ -400,7 +400,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                       </select>
                     </div>
                     <p className="text-xs text-gray-500 w-full">
-                      Se vincular aqui, o fornecedor será reconhecido automaticamente nas próximas importações.
+                      Vincule uma vez aqui; nas próximas importações o sistema identifica o fornecedor automaticamente.
                     </p>
                   </div>
                 )}
