@@ -1,6 +1,6 @@
 # Parser de PDF – Data e Variantes
 
-## Status Atual (Backend)
+## Status Atual (Backend – atualizado)
 
 | Item | Status | Onde |
 |------|--------|------|
@@ -8,6 +8,12 @@
 | Detectar padrão [QTD] [COR]: | ✅ Corrigido | `VARIANT_LINE_REGEX` + `expandProductByVariants()` |
 | Separar cada variante em um produto | ✅ Corrigido | `expandProductByVariants()` |
 | Agrupar IMEIs por variante | ✅ Corrigido | Consumo de linhas 15 dígitos após cada linha de variante |
+| Mesma linha nome+variante+QTY (I15128P2 02 PINK) | ✅ Corrigido | `extractProducts()` – prioridade prefix + look-ahead IMEIs + lastConsumedLineIndex |
+| SKU não usado no import | ✅ | Backend retorna sempre `sku: ""`; front remove/exibe como quiser |
+| Nome fiel; ordem original | ✅ | Nome da coluna PRODUCTS; ordem = ordem original da invoice (sem sort) |
+| Fallback _COR em create invoice | ✅ Corrigido | `invoices/create.ts` – resolução por code base |
+| Cor com duas palavras (PINK NEW, BLACK NEW) | ✅ Corrigido | `VARIANT_LINE_REGEX` – `([A-Za-z]+(?:\s+[A-Za-z]+)?)` |
+| Linha de variante quebrada (07 + ULTRAMARINE:) | ✅ Corrigido | `normalizeVariantLines()` antes de `expandProductByVariants()` |
 
 ---
 
@@ -97,20 +103,27 @@ AMOUNT: 6900.00
 
 ---
 
-## Ordem dos produtos na resposta
+## SKU não usado no import
 
-**Exceção importante:** Os itens em `products` devem vir na **ordem original da invoice** (como aparecem no PDF), **não em ordem alfabética**. O front exibe na ordem recebida; a nota deve ser fiel à sequência da invoice.
+O backend **não preenche mais** o campo `sku` na resposta do import PDF. Em todos os produtos (extraídos e expandidos por variante) o valor retornado é **`sku: ""`**. O front remove ou exibe o SKU como quiser (ex.: tirar da linha do nome se vier junto).
+
+## Nome e ordem
+
+- **Nome:** Vem da coluna PRODUCTS, com `stripVariantSuffixFromName` só para tirar sufixos de variante (ex.: "02 PINK:") do nome base. O nome pode vir com código na frente (ex.: "I15128P2 APPLE - IPHONE 15 128GB P2"); o front trata/remove.
+- **Quantidade:** QTY da linha/variante.
+- **Cores/variantes:** Cada variante vira um item com `name: baseName + " " + cor` (ex.: "APPLE - IPHONE 15 128GB P2 PINK"), na mesma ordem em que aparecem no PDF.
+- **Ordem:** Nenhum `.sort()`; a ordem dos itens em `products` é a **ordem original da invoice**.
 
 ---
 
 ## Solução: Separar por Variante
 
-**Backend DEVE retornar (CORRETO ✅):**
+**Backend retorna (CORRETO ✅). SKU não é mais preenchido (`sku: ""`):**
 ```json
 {
   "products": [
     {
-      "sku": "I16PRO128P2_BLACK",
+      "sku": "",
       "name": "APPLE - IPHONE 16 PRO 128GB BLACK",
       "description": "5 BLACK",
       "quantity": 5,
@@ -130,7 +143,7 @@ AMOUNT: 6900.00
       }
     },
     {
-      "sku": "I16PRO128P2_NATURAL",
+      "sku": "",
       "name": "APPLE - IPHONE 16 PRO 128GB NATURAL",
       "description": "5 NATURAL",
       "quantity": 5,

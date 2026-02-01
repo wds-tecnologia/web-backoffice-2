@@ -386,18 +386,20 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         _isSupplierFromPdf: !!supplierFromPdf, // Fornecedor reconhecido por alias no import
       });
 
-      // Adicionar produtos do PDF ao currentInvoice
+      // Adicionar produtos do PDF ao currentInvoice (sku não vem mais; usar só validation.productId)
       const newProducts = editedData.products.map((pdfProduct: any) => ({
-        id: pdfProduct.validation.productId || pdfProduct.sku,
+        id: pdfProduct.validation?.productId ?? "",
+        productId: pdfProduct.validation?.productId ?? "",
+        invoiceId: "",
         name: pdfProduct.name,
         quantity: pdfProduct.quantity,
         value: pdfProduct.rate,
-        weight: 0, // Pode ser preenchido depois
+        price: pdfProduct.rate,
+        weight: 0,
         total: pdfProduct.amount,
         received: false,
         receivedQuantity: 0,
-        // Guardar IMEIs temporariamente para salvar depois
-        _imeis: pdfProduct.imeis || [], // Campo temporário
+        _imeis: pdfProduct.imeis || [],
       }));
 
       setCurrentInvoice({
@@ -449,6 +451,24 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           icon: "warning",
           title: "Atenção",
           text: "Adicione pelo menos um produto à invoice!",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+        return;
+      }
+
+      // Validar que todos os produtos têm productId válido (sku não vem mais; exige vínculo)
+      const productsWithoutLink = currentInvoice.products.filter(
+        (p) => !(p.productId || p.id) || String(p.productId || p.id).trim() === ""
+      );
+      if (productsWithoutLink.length > 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "Produtos sem vínculo",
+          html: `<p>Vincule ou selecione todos os produtos antes de salvar. ${productsWithoutLink.length} produto(s) ainda sem vínculo.</p><p class="text-sm text-gray-600 mt-2">${productsWithoutLink.map((p) => p.name || "—").join(", ")}</p>`,
           confirmButtonText: "Ok",
           buttonsStyling: false,
           customClass: {
