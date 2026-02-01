@@ -101,41 +101,29 @@ RATE: 690.00
 AMOUNT: 6900.00
 ```
 
-**Backend DEVE retornar 2 produtos** (não 1 com qty 10):
+**Backend retorna 2 produtos** (não 1 com qty 10). **SKU não é mais preenchido no import** (`sku: ""` em todos):
 
 ```json
 {
   "products": [
     {
-      "sku": "I16PRO128P2_BLACK",
+      "sku": "",
       "name": "APPLE - IPHONE 16 PRO 128GB BLACK",
       "description": "5 BLACK",
       "quantity": 5,
       "rate": 690.00,
       "amount": 3450.00,
-      "imeis": [
-        "353000000000001",
-        "353000000000002",
-        "353000000000003",
-        "353000000000004",
-        "353000000000005"
-      ],
+      "imeis": ["353000000000001", "353000000000002", "353000000000003", "353000000000004", "353000000000005"],
       "validation": { "exists": false, "productId": null, "divergences": [] }
     },
     {
-      "sku": "I16PRO128P2_NATURAL",
+      "sku": "",
       "name": "APPLE - IPHONE 16 PRO 128GB NATURAL",
       "description": "5 NATURAL",
       "quantity": 5,
       "rate": 690.00,
       "amount": 3450.00,
-      "imeis": [
-        "353000000000006",
-        "353000000000007",
-        "353000000000008",
-        "353000000000009",
-        "353000000000010"
-      ],
+      "imeis": ["353000000000006", "353000000000007", "353000000000008", "353000000000009", "353000000000010"],
       "validation": { "exists": false, "productId": null, "divergences": [] }
     }
   ]
@@ -152,7 +140,7 @@ AMOUNT: 6900.00
 
 ## Resposta esperada (200)
 
-O front espera exatamente este formato:
+O front espera este formato. **SKU não é mais preenchido no import** (backend retorna `sku: ""` em todos os produtos).
 
 ```json
 {
@@ -163,23 +151,18 @@ O front espera exatamente este formato:
   },
   "products": [
     {
-      "sku": "I17_256_BLACK",
+      "sku": "",
       "name": "APPLE - IPHONE 17 256GB BLACK",
       "description": "20 BLACK",
       "quantity": 20,
       "rate": 849.00,
       "amount": 16980.00,
-      "imeis": [
-        "354780907895774",
-        "354780909633892"
-      ],
+      "imeis": ["354780907895774", "354780909633892"],
       "validation": {
         "exists": false,
         "productId": null,
         "divergences": [],
-        "needsReview": false,
-        "matchedByAlias": false,
-        "aliasId": null
+        "needsReview": false
       }
     }
   ],
@@ -194,18 +177,18 @@ O front espera exatamente este formato:
 
 ### Campos obrigatórios
 
-- **invoiceData.number** (string): número da invoice (ex.: `"2272"`).
-- **invoiceData.date** (string): data em **YYYY-MM-DD** (ex.: `"2026-01-09"`).
+- **invoiceData.number** (string): número da invoice (ex.: `"2272"`). Vazio se não extraído.
+- **invoiceData.date** (string): data em **YYYY-MM-DD** (ex.: `"2026-01-09"`). Vazio se não extraído.
 - **invoiceData.emails** (array de strings): emails extraídos do cabeçalho (pode ser `[]`).
-- **products** (array): um item por linha de produto na tabela (ou por variante se houver).
-  - **sku** (string): da coluna SKU (+ `_COR` se for variante).
-  - **name** (string): da coluna PRODUCTS (+ ` COR` se for variante).
+- **products** (array): um item por linha de produto (ou por variante), **na ordem original da invoice** (sem ordenação alfabética).
+  - **sku** (string): **não é mais preenchido no import**; o backend retorna sempre `""`. O front remove ou exibe como quiser (ex.: tirar da linha do nome se vier junto).
+  - **name** (string): nome do produto (coluna PRODUCTS, fiel ao PDF; variantes recebem `" NOME COR"`). Pode vir com código na frente (ex.: `I15128P2 APPLE - IPHONE 15 128GB P2`); o front trata/remove se desejar.
   - **description** (string): texto bruto da DESCRIPTION ou resumo (ex.: `"20 BLACK"`).
   - **quantity** (number): da coluna QTY (ou quantidade da variante).
   - **rate** (number): da coluna RATE.
   - **amount** (number): da coluna AMOUNT (ou recalculado se variante).
-  - **imeis** (array de strings): lista de IMEIs extraídos da DESCRIPTION (15 dígitos cada).
-  - **validation** (objeto): pelo menos `{ "exists": boolean, "productId": string | null, "divergences": [] }`; **needsReview**, **matchedByAlias**, **aliasId** opcionais.
+  - **imeis** (array de strings): IMEIs extraídos da DESCRIPTION (15 dígitos cada).
+  - **validation** (objeto): pelo menos `{ "exists": boolean, "productId": string | null, "divergences": [] }`; **needsReview** opcional.
 - **summary**: `totalProducts`, `existingProducts`, `newProducts`, `productsWithDivergences` (números).
 
 ---

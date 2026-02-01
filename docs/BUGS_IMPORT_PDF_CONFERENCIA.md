@@ -2,6 +2,8 @@
 
 Documento para enviar ao backend junto com o PDF `public/Invoice 2272 (2).pdf` para conferência.
 
+**Status backend (atualizado):** BUG 1 (data), BUG 2 (separação por variante), BUG 2b (mesma linha I15128P2 02 PINK), BUG 3 (SKU/IMEI/nome) foram **corrigidos** no backend. Ver `docs/PENDENCIES_INVOICES_IMPORT_STATUS.md` (seção "Parser PDF – Status das correções").
+
 ---
 
 ## Resumo do feedback do usuário

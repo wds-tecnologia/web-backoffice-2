@@ -17,9 +17,9 @@ function pdfDataListToInvoices(
 ): Invoice[] {
   return editedDataList.map((data) => {
     const products = (data.products || []).map((p) => ({
-      id: p.validation?.productId || p.sku,
+      id: p.validation?.productId ?? "",
       invoiceId: "",
-      productId: p.validation?.productId || p.sku,
+      productId: p.validation?.productId ?? "",
       quantity: p.quantity,
       value: p.rate,
       price: p.rate,
@@ -347,6 +347,22 @@ export function MultiInvoiceReviewModal({
       });
       return;
     }
+
+    // Validar que todos os produtos foram vinculados (sku não vem mais; exige validation.productId)
+    const productsWithoutLink = currentData.products.filter((p) => !p.validation?.productId?.trim());
+    if (productsWithoutLink.length > 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Produtos sem vínculo",
+        html: `<p>Vincule todos os produtos antes de salvar. ${productsWithoutLink.length} produto(s) ainda sem vínculo:</p><p class="text-sm text-gray-600 mt-2">${productsWithoutLink.map((p) => p.name).join(", ")}</p>`,
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
     
     // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
     // MUDANÇA: Apenas avisar, mas permitir continuar
@@ -398,7 +414,7 @@ export function MultiInvoiceReviewModal({
       const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
       const products = currentData.products.map((p) => ({
-        id: p.validation.productId || p.sku,
+        id: p.validation.productId,
         name: p.name,
         quantity: p.quantity,
         value: p.rate,

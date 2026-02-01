@@ -55,3 +55,27 @@ Documento de acompanhamento do que foi implementado no backend e referências.
 
 - **#3/#4:** `expandProductsByVariants()`, `VARIANT_LINE_REGEX`, agrupamento IMEIs por variante.
 - **#6:** `extractInvoiceData()` extrai nome após BILL TO/Sold To/Customer; `findSupplierIdByAlias()` retorna `supplierId`; `invoiceData.supplierId` na resposta de `POST /invoice/import-from-pdf`.
+
+---
+
+## Parser PDF – Status das correções (backend atualizado)
+
+O backend atualizou o parser em `src/http/controllers/invoices/import-pdf.ts`. Resumo:
+
+| Item | Status | Onde |
+|------|--------|------|
+| Data MM/DD/YYYY → YYYY-MM-DD | ✅ Corrigido | `extractInvoiceData()` |
+| Detectar padrão [QTD] [COR]: | ✅ Corrigido | `VARIANT_LINE_REGEX` + `expandProductByVariants()` |
+| Separar cada variante em um produto | ✅ Corrigido | `expandProductByVariants()` |
+| Agrupar IMEIs por variante | ✅ Corrigido | Consumo de linhas 15 dígitos após cada linha de variante |
+| Mesma linha nome+variante+QTY (I15128P2 02 PINK – não misturar com linha anterior) | ✅ Corrigido | `extractProducts()` – prioridade prefix + look-ahead IMEIs + lastConsumedLineIndex |
+| Nunca "SKU" nem IMEI como sku; nome sem sufixo variante | ✅ Corrigido | `getBaseSkuForVariant`, `stripVariantSuffixFromName`, `extractProducts`, `findProduct` |
+| Fallback _COR em create invoice | ✅ Corrigido | `invoices/create.ts` – resolução por code base |
+| Cor com duas palavras (PINK NEW, BLACK NEW) | ✅ Corrigido | `VARIANT_LINE_REGEX` – `([A-Za-z]+(?:\s+[A-Za-z]+)?)` |
+| Linha de variante quebrada (07 + ULTRAMARINE:) | ✅ Corrigido | `normalizeVariantLines()` antes de `expandProductByVariants()` |
+
+**Formatos reais no PDF (Invoice 2247):** variante com duas palavras (`02 PINK NEW:`, `BLACK NEW:`), variante sem dois pontos (`05 WHITE`, `05 BLACK`), quantidade e cor em linhas separadas (`07` + `ULTRAMARINE:` → normalizado para `07 ULTRAMARINE:`). Cabeçalho repetido no meio da tabela é ignorado.
+
+**SKU não usado no import:** O backend retorna **`sku: ""`** em todos os produtos. O front remove ou exibe como quiser (ex.: tirar da linha do nome se vier junto). Nome e ordem dos produtos são preservados (ordem original da invoice, sem sort).
+
+Contrato do import: `docs/PROMPT_BACKEND_IMPORT_PDF.md`. Regras e exemplos de variantes: `docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md`.
