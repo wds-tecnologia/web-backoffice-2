@@ -749,7 +749,7 @@ export const CaixasTab = () => {
           // Quando tem item selecionado, mostrar apenas o card relevante
           <>
             {selectedEntity.typeInvoice === "fornecedor" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-2xl shadow-sm border border-yellow-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <HandCoins className="text-yellow-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">
@@ -767,7 +767,7 @@ export const CaixasTab = () => {
               </motion.div>
             )}
             {selectedEntity.typeInvoice === "freteiro" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-2xl shadow-sm border border-blue-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Truck className="text-blue-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">
@@ -785,7 +785,7 @@ export const CaixasTab = () => {
               </motion.div>
             )}
             {selectedEntity.typeInvoice === "parceiro" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Handshake className="text-teal-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">
@@ -800,7 +800,7 @@ export const CaixasTab = () => {
                 </div>
               </motion.div>
             )}
-            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
               <div className="flex items-center gap-2 mb-2">
                 <CircleDollarSign className="text-purple-600 w-5 h-5" />
                 <h3 className="font-medium truncate max-w-[180px]">
@@ -821,7 +821,7 @@ export const CaixasTab = () => {
           // Quando tem filtro de grupo selecionado, mostrar apenas o card do grupo
           <>
             {selectedFilter === "suppliers" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-2xl shadow-sm border border-yellow-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <HandCoins className="text-yellow-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL FORNECEDORES</h3>
@@ -837,7 +837,7 @@ export const CaixasTab = () => {
               </motion.div>
             )}
             {selectedFilter === "carriers" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-2xl shadow-sm border border-blue-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Truck className="text-blue-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL FRETES</h3>
@@ -853,7 +853,7 @@ export const CaixasTab = () => {
               </motion.div>
             )}
             {selectedFilter === "partners" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Handshake className="text-teal-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -868,7 +868,7 @@ export const CaixasTab = () => {
             )}
             {selectedFilter === "all" && (
               <>
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-2xl shadow-sm border border-yellow-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <HandCoins className="text-yellow-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">TOTAL FORNECEDORES</h3>
@@ -883,7 +883,7 @@ export const CaixasTab = () => {
                   )}
                 </motion.div>
 
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-2xl shadow-sm border border-blue-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <Truck className="text-blue-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">TOTAL FRETES</h3>
@@ -898,7 +898,7 @@ export const CaixasTab = () => {
                   )}
                 </motion.div>
 
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <Handshake className="text-teal-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -911,7 +911,7 @@ export const CaixasTab = () => {
                   </div>
                 </motion.div>
 
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <CircleDollarSign className="text-purple-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">TOTAL GERAL</h3>
@@ -932,7 +932,7 @@ export const CaixasTab = () => {
           // Quando não tem item selecionado, mostrar todos os totais apenas para MASTER e ADMIN
           (user?.role === "MASTER" || user?.role === "ADMIN") ? (
             <>
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-yellow-50 p-4 rounded-2xl shadow-sm border border-yellow-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <HandCoins className="text-yellow-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL FORNECEDORES</h3>
@@ -947,7 +947,7 @@ export const CaixasTab = () => {
                 )}
               </motion.div>
 
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-blue-50 p-4 rounded-2xl shadow-sm border border-blue-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Truck className="text-blue-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL FRETES</h3>
@@ -962,7 +962,7 @@ export const CaixasTab = () => {
                 )}
               </motion.div>
 
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Handshake className="text-teal-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -975,7 +975,7 @@ export const CaixasTab = () => {
                 </div>
               </motion.div>
 
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <CircleDollarSign className="text-purple-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL GERAL</h3>
@@ -994,7 +994,7 @@ export const CaixasTab = () => {
         )}
       </div>
       )}
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
         <div className="flex items-center mb-4">
           <i className="fas fa-search text-blue-600 mr-2"></i>
           <h2 className="text-lg font-semibold text-blue-700">Selecionar Entidade</h2>
@@ -1063,7 +1063,7 @@ export const CaixasTab = () => {
       </div>
       {/* Dados do caixa selecionado */}
       {selectedEntity && (user?.role === "MASTER" || user?.role === "ADMIN" || permissions?.GERENCIAR_INVOICES?.CAIXAS_PERMITIDOS?.includes(selectedEntity.name)) && (
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-blue-600 font-semibold text-lg flex items-center space-x-2">
               {selectedEntity.typeInvoice === "freteiro" && <i className="fas fa-truck text-blue-600"></i>}

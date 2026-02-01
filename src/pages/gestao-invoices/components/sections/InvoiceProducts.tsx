@@ -117,8 +117,6 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
 
   const editProduct = (index: number) => {
     const product = currentInvoice.products[index];
-    const productData = products.find((p) => p.id === product.id);
-    
     setProductForm({
       productId: product.id,
       quantity: product.quantity.toString(),
@@ -129,7 +127,13 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     });
     setValorRaw(product.value.toString());
     setEditingProductIndex(index);
-    setShowProductForm(true);
+    setShowProductForm(false); // Edição inline na própria linha, não no topo
+  };
+
+  const cancelEdit = () => {
+    setEditingProductIndex(null);
+    setProductForm({ productId: "", price: "", quantity: "", value: "", weight: "", total: "" });
+    setValorRaw("");
   };
 
   const updateProduct = () => {
@@ -369,12 +373,17 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         dateFromPdf = false;
       }
 
-      // Preencher número e data da invoice automaticamente
+      const supplierFromPdf = editedData.invoiceData?.supplierId;
+
+      // Preencher número, data e fornecedor da invoice automaticamente (bloqueados quando vêm do PDF)
       setCurrentInvoice({
         ...currentInvoice,
         number: editedData.invoiceData.number,
         date: formattedDate,
-        _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
+        supplierId: supplierFromPdf ?? currentInvoice.supplierId,
+        _isDateFromPdf: dateFromPdf,
+        _isNumberFromPdf: true, // Número sempre vem do PDF
+        _isSupplierFromPdf: !!supplierFromPdf, // Fornecedor reconhecido por alias no import
       });
 
       // Adicionar produtos do PDF ao currentInvoice
@@ -395,8 +404,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         ...currentInvoice,
         number: editedData.invoiceData.number,
         date: formattedDate,
+        supplierId: supplierFromPdf ?? currentInvoice.supplierId,
         products: [...currentInvoice.products, ...newProducts],
-        _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
+        _isDateFromPdf: dateFromPdf,
+        _isNumberFromPdf: true,
+        _isSupplierFromPdf: !!supplierFromPdf,
       });
 
       if (pdfDataQueue.length > 0) {
@@ -647,7 +659,16 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
     }, "saveInvoice").catch((error: any) => {
       console.error("Erro ao salvar a invoice:", error);
 
-      const errorMessage = error?.response?.data?.message || error?.message || "Erro ao salvar a invoice";
+      const data = error?.response?.data;
+      let errorMessage = data?.message || error?.message || "Erro ao salvar a invoice";
+
+      // Enriquecer com detalhes do backend (productId inválido, supplierId não encontrado)
+      if (data?.invalidProductIds && Array.isArray(data.invalidProductIds) && data.invalidProductIds.length > 0) {
+        errorMessage += ` IDs/SKUs inválidos: ${data.invalidProductIds.join(", ")}.`;
+      }
+      if (data?.supplierId) {
+        errorMessage += ` Fornecedor ID: ${data.supplierId}.`;
+      }
 
       Swal.fire({
         icon: "error",
@@ -743,10 +764,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         }}
       />
 
-      {showProductForm && (
+      {/* Formulário no topo só para ADICIONAR produto; edição é inline na linha */}
+      {showProductForm && editingProductIndex === null && (
         <div className="mb-6 p-4 bg-gray-50 rounded-lg border">
           <h3 className="font-medium mb-3 text-blue-700 border-b pb-2">
-            {editingProductIndex !== null ? "Editar Produto" : "Adicionar Produto"}
+            Adicionar Produto
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-2 mb-4">
             <div className="relative md:col-span-2">
@@ -999,7 +1021,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
                 disabled={isActionLoading}
               >
                 <Plus className="mr-1 inline" size={16} />
-                {editingProductIndex !== null ? "Salvar Alterações" : "Adicionar"}
+                Adicionar
               </button>
             </div>
           </div>
@@ -1038,38 +1060,125 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
             </thead>
             <tbody className="divide-y divide-gray-200">
               {currentInvoice.products.map((product, index) => (
-                <tr key={index}>
-                  <td className="px-4 py-2 text-sm text-gray-800">
-                    {product.name || products.find((item) => item.id === product.id)?.name || "-"}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-right">{product.quantity}</td>
-                  <td className="px-4 py-2 text-sm text-right">
-                    {product.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-2 text-sm text-right">{product.weight.toFixed(2)}</td>
-                  <td className="px-4 py-2 text-sm text-right">
-                    {product.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-4 py-2 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => editProduct(index)}
-                        className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={isActionLoading}
-                        title="Editar produto"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(index)}
-                        className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={isActionLoading}
-                        title="Excluir produto"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+                <tr key={index} className={editingProductIndex === index ? "bg-blue-50" : ""}>
+                    {editingProductIndex === index ? (
+                      /* Edição inline na própria linha */
+                      <td colSpan={6} className="px-4 py-3">
+                        <div className="flex flex-wrap items-end gap-3">
+                          <div className="min-w-[200px] flex-1">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Produto</label>
+                            <ProductSearchSelect
+                              products={products}
+                              value={productForm.productId}
+                              onChange={(e: any) => {
+                                const p = products.find((x) => x.id === e);
+                                if (p) {
+                                  const price = p.priceweightAverage ?? 0;
+                                  const weight = p.weightAverage ?? 0;
+                                  setValorRaw(price > 0 ? price.toString() : "");
+                                  setProductForm({
+                                    ...productForm,
+                                    productId: e,
+                                    value: price > 0 ? price.toString() : productForm.value,
+                                    weight: weight > 0 ? weight.toString() : productForm.weight,
+                                  });
+                                } else {
+                                  setProductForm({ ...productForm, productId: e });
+                                }
+                              }}
+                            />
+                          </div>
+                          <div className="w-20">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Qtd</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={productForm.quantity}
+                              onChange={(e) => {
+                                const q = e.target.value;
+                                setProductForm({ ...productForm, quantity: q });
+                                const val = parseFloat(productForm.value) || 0;
+                                setProductForm((pf) => ({ ...pf, total: ((parseFloat(q) || 0) * val).toFixed(2) }));
+                              }}
+                              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                            />
+                          </div>
+                          <div className="w-24">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Valor ($)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={productForm.value}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setProductForm({ ...productForm, value: v });
+                                const q = parseFloat(productForm.quantity) || 0;
+                                setProductForm((pf) => ({ ...pf, total: (q * (parseFloat(v) || 0)).toFixed(2) }));
+                              }}
+                              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                            />
+                          </div>
+                          <div className="w-20">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Peso</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={productForm.weight}
+                              onChange={(e) => setProductForm({ ...productForm, weight: e.target.value })}
+                              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                            />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => updateProduct()}
+                              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                            >
+                              Salvar
+                            </button>
+                            <button
+                              onClick={() => cancelEdit()}
+                              className="px-3 py-1.5 bg-gray-300 text-gray-700 text-sm rounded hover:bg-gray-400"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    ) : (
+                      <>
+                        <td className="px-4 py-2 text-sm text-gray-800">
+                          {product.name || products.find((item) => item.id === product.id)?.name || "-"}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right">{product.quantity}</td>
+                        <td className="px-4 py-2 text-sm text-right">
+                          {product.value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right">{product.weight.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-sm text-right">
+                          {product.total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-2 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => editProduct(index)}
+                              className="text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isActionLoading}
+                              title="Editar produto"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => deleteProduct(index)}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                              disabled={isActionLoading}
+                              title="Excluir produto"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
                 </tr>
               ))}
             </tbody>

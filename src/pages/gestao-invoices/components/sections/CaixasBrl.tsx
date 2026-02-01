@@ -601,7 +601,7 @@ export const CaixasTabBrl = () => {
           // Quando tem item selecionado, mostrar apenas o card relevante
           <>
             {selectedEntity.typeInvoice === "parceiro" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Handshake className="text-teal-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">
@@ -616,7 +616,7 @@ export const CaixasTabBrl = () => {
                 </div>
               </motion.div>
             )}
-            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
               <div className="flex items-center gap-2 mb-2">
                 <CircleDollarSign className="text-purple-600 w-5 h-5" />
                 <h3 className="font-medium truncate max-w-[180px]">
@@ -637,7 +637,7 @@ export const CaixasTabBrl = () => {
           // Quando tem filtro de grupo selecionado, mostrar apenas o card do grupo
           <>
             {selectedFilter === "partners" && (
-              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+              <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                 <div className="flex items-center gap-2 mb-2">
                   <Handshake className="text-teal-600 w-5 h-5" />
                   <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -652,7 +652,7 @@ export const CaixasTabBrl = () => {
             )}
             {selectedFilter === "all" && (
               <>
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <Handshake className="text-teal-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -665,7 +665,7 @@ export const CaixasTabBrl = () => {
                   </div>
                 </motion.div>
 
-                <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+                <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
                   <div className="flex items-center gap-2 mb-2">
                     <CircleDollarSign className="text-purple-600 w-5 h-5" />
                     <h3 className="font-medium truncate max-w-[180px]">BALANÇO GERAL</h3>
@@ -685,7 +685,7 @@ export const CaixasTabBrl = () => {
         ) : (
           // Quando não tem item selecionado, mostrar todos os totais
           <>
-            <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-lg shadow relative group">
+            <motion.div whileHover={{ scale: 1.02 }} className="bg-teal-50 p-4 rounded-2xl shadow-sm border border-teal-100 relative group">
               <div className="flex items-center gap-2 mb-2">
                 <Handshake className="text-teal-600 w-5 h-5" />
                 <h3 className="font-medium truncate max-w-[180px]">TOTAL PARCEIROS</h3>
@@ -698,7 +698,7 @@ export const CaixasTabBrl = () => {
               </div>
             </motion.div>
 
-            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-lg shadow relative group">
+            <motion.div whileHover={{ scale: 1.02 }} className="bg-purple-50 p-4 rounded-2xl shadow-sm border border-purple-100 relative group">
               <div className="flex items-center gap-2 mb-2">
                 <CircleDollarSign className="text-purple-600 w-5 h-5" />
                 <h3 className="font-medium truncate max-w-[180px]">BALANÇO GERAL</h3>
@@ -716,7 +716,7 @@ export const CaixasTabBrl = () => {
         )}
       </div>
       )}
-      <div className="bg-white p-6 rounded-lg shadow mb-6">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
         <div className="flex items-center mb-4">
           <i className="fas fa-search text-blue-600 mr-2"></i>
           <h2 className="text-lg font-semibold text-blue-700">Selecionar Entidade</h2>
@@ -799,7 +799,7 @@ export const CaixasTabBrl = () => {
       </div>
       {/* Dados do caixa selecionado */}
       {selectedEntity && permissions?.GERENCIAR_INVOICES?.CAIXAS_BR_PERMITIDOS?.includes(selectedEntity.name) && (
-        <div className="bg-white p-6 rounded-lg shadow mb-6">
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-6">
           <div className="flex justify-between items-start mb-4">
             <h2 className="text-blue-600 font-semibold text-lg flex items-center space-x-2">
               {selectedEntity.typeInvoice === "freteiro" && <i className="fas fa-truck text-blue-600"></i>}

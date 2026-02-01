@@ -312,7 +312,7 @@ export function ProductsTab() {
   }, []);
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-blue-700">
           <Boxes className="mr-2 inline" size={18} />
@@ -322,7 +322,7 @@ export function ProductsTab() {
           {selectedProducts.length > 0 && (
             <button
               onClick={handleDeleteMultiple}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center"
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl flex items-center shadow-sm"
               disabled={isActionLoading}
             >
               {isSubmitting ? (
@@ -338,7 +338,7 @@ export function ProductsTab() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as "name" | "code")}
-              className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
             >
               <option value="name">Nome (Alfabético)</option>
               <option value="code">Código</option>
@@ -365,7 +365,7 @@ export function ProductsTab() {
               });
               setShowModal(true);
             }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center shadow-sm"
             disabled={isLoading || isActionLoading}
           >
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
@@ -379,9 +379,9 @@ export function ProductsTab() {
           <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   <input
@@ -406,7 +406,7 @@ export function ProductsTab() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {products.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
@@ -463,9 +463,9 @@ export function ProductsTab() {
       {showModal && currentProduct && (
         <div
           onClick={() => setShowModal(false)}
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 backdrop-blur-sm"
         >
-          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-md">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-2xl w-full max-w-md shadow-xl border border-gray-100">
             <h3 className="text-lg font-medium mb-4">{currentProduct.id ? "Editar Produto" : "Novo Produto"}</h3>
             <div className="space-y-4">
               <div>
@@ -485,7 +485,7 @@ export function ProductsTab() {
                       }
                     }, 0);
                   }}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   disabled={isActionLoading}
                 />
               </div>
@@ -495,7 +495,7 @@ export function ProductsTab() {
                   type="text"
                   value={currentProduct.code}
                   disabled // <- campo agora é somente leitura
-                  className="w-full border border-gray-300 rounded-md p-2 bg-gray-100 cursor-not-allowed"
+                  className="w-full border border-gray-200 rounded-xl p-3 bg-gray-50 cursor-not-allowed"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -515,7 +515,7 @@ export function ProductsTab() {
                         });
                       }
                     }}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   />
                 </div>
                 <div>
@@ -534,7 +534,7 @@ export function ProductsTab() {
                         });
                       }
                     }}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   />
                 </div>
               </div>
@@ -555,7 +555,7 @@ export function ProductsTab() {
                       }
                     }, 0);
                   }}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   disabled={isActionLoading}
                 ></textarea>
               </div>
@@ -563,14 +563,14 @@ export function ProductsTab() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md"
+                className="px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50"
                 disabled={isActionLoading}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center"
+                className="px-4 py-2 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-sm hover:bg-blue-600"
                 disabled={isActionLoading}
               >
                 {isSubmitting ? (

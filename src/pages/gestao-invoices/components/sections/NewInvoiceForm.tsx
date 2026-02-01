@@ -7,9 +7,17 @@ interface NewInvoiceFormProps {
   currentInvoice: Invoice;
   setCurrentInvoice: (invoice: Invoice) => void;
   isDateFromPdf?: boolean;
+  isNumberFromPdf?: boolean;
+  isSupplierFromPdf?: boolean;
 }
 
-export function NewInvoiceForm({ currentInvoice, setCurrentInvoice, isDateFromPdf = false }: NewInvoiceFormProps) {
+export function NewInvoiceForm({
+  currentInvoice,
+  setCurrentInvoice,
+  isDateFromPdf = false,
+  isNumberFromPdf = false,
+  isSupplierFromPdf = false,
+}: NewInvoiceFormProps) {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [carriers, setCarriers] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -72,12 +80,19 @@ export function NewInvoiceForm({ currentInvoice, setCurrentInvoice, isDateFromPd
       </h2>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Fornecedor
+          {isSupplierFromPdf && <span className="ml-2 text-xs text-blue-600">(Da invoice importada)</span>}
+        </label>
         <select
           name="supplierId"
           value={currentInvoice.supplierId}
           onChange={handleInputChange}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isSupplierFromPdf}
+          className={`w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 ${
+            isSupplierFromPdf ? "bg-gray-100 cursor-not-allowed" : ""
+          }`}
+          title={isSupplierFromPdf ? "Fornecedor bloqueado - vem da invoice importada" : ""}
         >
           <option value="">Selecione um fornecedor</option>
           {suppliers.map((supplier) => (
@@ -89,14 +104,21 @@ export function NewInvoiceForm({ currentInvoice, setCurrentInvoice, isDateFromPd
       </div>
 
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Número da Invoice</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Número da Invoice
+          {isNumberFromPdf && <span className="ml-2 text-xs text-blue-600">(Da invoice importada)</span>}
+        </label>
         <input
           type="text"
           name="number"
           value={currentInvoice.number}
           onChange={handleInputChange}
-          className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isNumberFromPdf}
+          className={`w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 ${
+            isNumberFromPdf ? "bg-gray-100 cursor-not-allowed" : ""
+          }`}
           placeholder="Número da invoice"
+          title={isNumberFromPdf ? "Número bloqueado - vem da invoice importada" : ""}
         />
       </div>
 

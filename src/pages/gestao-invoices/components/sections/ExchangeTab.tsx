@@ -647,7 +647,7 @@ export function ExchangeTab() {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <h2 className="text-xl font-semibold mb-6 text-blue-700 border-b pb-2">
         <DollarSign className="mr-2 inline" size={18} />
         Média Dólar

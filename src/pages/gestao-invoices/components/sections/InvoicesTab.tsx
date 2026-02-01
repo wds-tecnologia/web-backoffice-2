@@ -61,6 +61,8 @@ export function InvoicesTab({
           currentInvoice={currentInvoice} 
           setCurrentInvoice={setCurrentInvoice}
           isDateFromPdf={currentInvoice._isDateFromPdf}
+          isNumberFromPdf={currentInvoice._isNumberFromPdf}
+          isSupplierFromPdf={currentInvoice._isSupplierFromPdf}
         />
         <InvoiceProducts
           currentInvoice={currentInvoice}

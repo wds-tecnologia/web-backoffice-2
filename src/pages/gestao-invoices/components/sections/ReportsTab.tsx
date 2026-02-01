@@ -96,7 +96,7 @@ export function ReportsTab() {
   const totalInvoices = invoices.length;
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <h2 className="text-xl font-semibold mb-6 text-blue-700 border-b pb-2">
         <ChartBar className="mr-2 inline" size={18} />
         Relatórios
@@ -167,7 +167,7 @@ export function ReportsTab() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <button
           onClick={() => setFilters({ ...filters, status: "pending" })}
-          className="bg-white p-6 rounded-lg border text-center"
+          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center"
         >
           <h3 className="text-lg font-medium mb-2 text-blue-700">Pendentes</h3>
           <p className="text-3xl font-bold text-yellow-600">{pendingCount}</p>
@@ -175,7 +175,7 @@ export function ReportsTab() {
         </button>
         <button
           onClick={() => setFilters({ ...filters, status: "paid" })}
-          className="bg-white p-6 rounded-lg border text-center"
+          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center"
         >
           <h3 className="text-lg font-medium mb-2 text-blue-700">Pagas</h3>
           <p className="text-3xl font-bold text-green-600">{paidCount}</p>
@@ -183,7 +183,7 @@ export function ReportsTab() {
         </button>
         <button
           onClick={() => setFilters({ ...filters, status: "completed" })}
-          className="bg-white p-6 rounded-lg border text-center"
+          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center"
         >
           <h3 className="text-lg font-medium mb-2 text-blue-700">Concluídas</h3>
           <p className="text-3xl font-bold text-blue-600">{completedCount}</p>
@@ -191,7 +191,7 @@ export function ReportsTab() {
         </button>
         <button
           onClick={() => setFilters({ ...filters, status: "all" })}
-          className="bg-white p-6 rounded-lg border text-center"
+          className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm text-center"
         >
           <h3 className="text-lg font-medium mb-2 text-indigo-700">Total</h3>
           <p className="text-3xl font-bold text-indigo-600">{totalInvoices}</p>

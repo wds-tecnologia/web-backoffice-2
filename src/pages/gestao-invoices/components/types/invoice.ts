@@ -25,4 +25,8 @@ import { InvoiceProduct } from "../sections/InvoiceProducts";
     
     /** Flag para indicar que a data veio do PDF importado e deve ficar bloqueada */
     _isDateFromPdf?: boolean;
+    /** Flag para indicar que o número veio do PDF e deve ficar bloqueado */
+    _isNumberFromPdf?: boolean;
+    /** Flag para indicar que o fornecedor veio do PDF e deve ficar bloqueado */
+    _isSupplierFromPdf?: boolean;
   }
