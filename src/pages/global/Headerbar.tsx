@@ -192,19 +192,6 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
             </MenuItem>
           )}
 
-          {canShowTab("GERENCIAR_PLANILHAS") && (
-            <MenuItem
-              onClick={() => {
-                navigate("/spreadsheets");
-                handleMenuClose();
-              }}
-              sx={{ color: colors.grey[100] }}
-            >
-              <TableChartOutlinedIcon sx={{ mr: 1, color: colors.greenAccent[500] }} />
-              Gerenciar Planilhas
-            </MenuItem>
-          )}
-
           {canShowTab("GERENCIAR_INVOICES") && (
             <MenuItem
               onClick={() => {
@@ -231,18 +218,6 @@ const HeaderMenu: React.FC<HeaderMenuProps> = () => {
             </MenuItem>
           )}
 
-          {canShowTab("GERENCIAR_BOLETOS") && (
-            <MenuItem
-              onClick={() => {
-                navigate("/billets-management");
-                handleMenuClose();
-              }}
-              sx={{ color: colors.grey[100] }}
-            >
-              <TableChartOutlinedIcon sx={{ mr: 1, color: colors.greenAccent[500] }} />
-              Gerenciar Boletos
-            </MenuItem>
-          )}
         </Menu>
 
         {/* Enhanced Modal Component - DESABILITADO */}

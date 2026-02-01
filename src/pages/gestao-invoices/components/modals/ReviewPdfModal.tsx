@@ -36,6 +36,8 @@ export interface PdfData {
     number: string;
     date: string;
     emails: string[];
+    /** Preenchido pelo backend quando há alias de fornecedor correspondente */
+    supplierId?: string;
   };
   products: PdfProduct[];
   summary: {

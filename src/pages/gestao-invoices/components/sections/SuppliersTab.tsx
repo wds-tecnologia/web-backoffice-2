@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Users, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Loader2, Link2 } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -12,10 +12,22 @@ export interface Supplier {
   active?: boolean;
 }
 
+export interface SupplierAlias {
+  id: string;
+  pdfSupplierName: string;
+  supplierId: string;
+  supplierName?: string;
+  createdAt?: string;
+}
+
 export function SuppliersTab() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [aliases, setAliases] = useState<SupplierAlias[]>([]);
   const [showModal, setShowModal] = useState(false);
+  const [showAliasForm, setShowAliasForm] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState<Supplier | null>(null);
+  const [newAliasPdfName, setNewAliasPdfName] = useState("");
+  const [newAliasSupplierId, setNewAliasSupplierId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setOpenNotification } = useNotification();
@@ -24,8 +36,17 @@ export function SuppliersTab() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get<Supplier[]>("/invoice/supplier");
-      setSuppliers(response.data);
+      const [suppliersRes, aliasesRes] = await Promise.all([
+        api.get<Supplier[]>("/invoice/supplier"),
+        api.get<{ aliases?: SupplierAlias[] } | SupplierAlias[]>("/invoice/supplier/aliases").catch(() => ({ data: { aliases: [] } })),
+      ]);
+      setSuppliers(suppliersRes.data);
+      const aliasesData = aliasesRes.data;
+      setAliases(
+        Array.isArray(aliasesData)
+          ? aliasesData
+          : (aliasesData as { aliases?: SupplierAlias[] })?.aliases ?? []
+      );
     } catch (error) {
       console.error("Erro ao buscar fornecedores:", error);
       // Swal.fire({
@@ -193,17 +214,82 @@ export function SuppliersTab() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setShowModal(false);
+        setShowAliasForm(false);
       }
     };
-  
+
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
+  const handleAddAlias = async () => {
+    const pdfName = newAliasPdfName.trim();
+    if (!pdfName || !newAliasSupplierId) {
+      setOpenNotification({
+        type: "error",
+        title: "Campos obrigatórios",
+        notification: "Informe o nome no PDF e selecione o fornecedor.",
+      });
+      return;
+    }
+    try {
+      await api.post("/invoice/supplier/alias", {
+        pdfSupplierName: pdfName,
+        supplierId: newAliasSupplierId,
+      });
+      setNewAliasPdfName("");
+      setNewAliasSupplierId("");
+      setShowAliasForm(false);
+      await fetchData();
+      setOpenNotification({
+        type: "success",
+        title: "Vínculo salvo",
+        notification: "Alias de fornecedor criado com sucesso!",
+      });
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || "Erro ao salvar vínculo.";
+      setOpenNotification({ type: "error", title: "Erro", notification: msg });
+    }
+  };
+
+  const handleDeleteAlias = async (alias: SupplierAlias) => {
+    if (isActionLoading) return;
+    const result = await Swal.fire({
+      title: "Remover vínculo?",
+      text: `"${alias.pdfSupplierName}" deixará de ser vinculado automaticamente.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sim, remover",
+      cancelButtonText: "Cancelar",
+      buttonsStyling: false,
+      customClass: {
+        confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-xl",
+        cancelButton: "bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-xl",
+      },
+    });
+    if (result.isConfirmed) {
+      try {
+        await api.delete(`/invoice/supplier/alias/${alias.id}`);
+        await fetchData();
+        setOpenNotification({
+          type: "success",
+          title: "Removido",
+          notification: "Vínculo removido com sucesso.",
+        });
+      } catch (err) {
+        setOpenNotification({
+          type: "error",
+          title: "Erro",
+          notification: "Não foi possível remover o vínculo.",
+        });
+      }
+    }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
+    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-blue-700">
           <Users className="mr-2 inline" size={18} />
@@ -218,7 +304,7 @@ export function SuppliersTab() {
             });
             setShowModal(true);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl flex items-center shadow-sm"
           disabled={isLoading || isActionLoading}
         >
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2" size={16} />}
@@ -231,9 +317,9 @@ export function SuppliersTab() {
           <Loader2 className="h-8 w-8 text-blue-500 animate-spin" />
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -244,7 +330,7 @@ export function SuppliersTab() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {suppliers.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-4 text-center text-gray-500">
@@ -285,9 +371,123 @@ export function SuppliersTab() {
         </div>
       )}
 
+      {/* Seção de Aliases (Vínculos PDF → Fornecedor) */}
+      <div className="mt-8 pt-6 border-t border-gray-200">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+            <Link2 size={18} />
+            Vínculos (Aliases)
+          </h3>
+          {!showAliasForm ? (
+            <button
+              type="button"
+              onClick={() => setShowAliasForm(true)}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+            >
+              <Plus size={16} />
+              Novo vínculo
+            </button>
+          ) : null}
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Vincule o nome do fornecedor como aparece no PDF ao fornecedor do sistema. Nas próximas importações, o fornecedor será reconhecido automaticamente.
+        </p>
+        {showAliasForm && (
+          <div className="mb-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nome no PDF</label>
+              <input
+                type="text"
+                value={newAliasPdfName}
+                onChange={(e) => setNewAliasPdfName(e.target.value)}
+                placeholder="Ex: DISTRIBUIDORA XYZ LTDA"
+                className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+              <select
+                value={newAliasSupplierId}
+                onChange={(e) => setNewAliasSupplierId(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl p-2 text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
+              >
+                <option value="">Selecione...</option>
+                {suppliers.filter((s) => s.active !== false).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              onClick={handleAddAlias}
+              className="px-4 py-2 bg-blue-500 text-white rounded-xl text-sm font-medium hover:bg-blue-600 shadow-sm"
+            >
+              Salvar
+            </button>
+            <button
+              onClick={() => {
+                setShowAliasForm(false);
+                setNewAliasPdfName("");
+                setNewAliasSupplierId("");
+              }}
+              className="px-4 py-2 border border-gray-200 rounded-xl text-sm hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/80">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Nome no PDF
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Vinculado a
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-100">
+              {aliases.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-center text-gray-500 text-sm">
+                    Nenhum vínculo cadastrado. Ao importar PDF, vincule o nome do fornecedor manualmente na primeira vez; o vínculo será salvo para próximas importações.
+                  </td>
+                </tr>
+              ) : (
+                aliases.map((alias) => (
+                  <tr key={alias.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-3 text-sm text-gray-700 font-mono">
+                      {alias.pdfSupplierName}
+                    </td>
+                    <td className="px-6 py-3 text-sm font-medium text-gray-900">
+                      {alias.supplierName ?? suppliers.find((s) => s.id === alias.supplierId)?.name ?? alias.supplierId}
+                    </td>
+                    <td className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => handleDeleteAlias(alias)}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                        disabled={isActionLoading}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {showModal && currentSupplier && (
-        <div onClick={()=> setShowModal(false)} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-lg w-full max-w-md">
+        <div onClick={()=> setShowModal(false)} className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white p-6 rounded-2xl w-full max-w-md shadow-xl border border-gray-100">
             <h3 className="text-lg font-medium mb-4">{currentSupplier.id ? "Editar Fornecedor" : "Novo Fornecedor"}</h3>
             <div className="space-y-4">
               <div>
@@ -296,7 +496,7 @@ export function SuppliersTab() {
                   type="text"
                   value={currentSupplier.name}
                   onChange={(e) => setCurrentSupplier({ ...currentSupplier, name: e.target.value.toUpperCase() })}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   disabled={isSubmitting}
                 />
               </div>
@@ -306,7 +506,7 @@ export function SuppliersTab() {
                   type="text"
                   value={currentSupplier.phone}
                   onChange={(e) => setCurrentSupplier({ ...currentSupplier, phone: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-200 rounded-xl p-3 focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
                   disabled={isSubmitting}
                 />
               </div>
@@ -314,14 +514,14 @@ export function SuppliersTab() {
             <div className="mt-6 flex justify-end space-x-3">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md"
+                className="px-4 py-2 border border-gray-200 rounded-xl hover:bg-gray-50"
                 disabled={isSubmitting}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center justify-center"
+                className="px-4 py-2 bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-sm hover:bg-blue-600"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (

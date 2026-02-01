@@ -82,11 +82,12 @@ function pdfDataListToInvoices(
       dateFromPdf = false;
     }
     
+    const supplierFromPdf = data.invoiceData?.supplierId;
     return {
       id: null,
       number: data.invoiceData?.number ?? "",
       date: formattedDate,
-      supplierId: defaultInvoice.supplierId ?? "",
+      supplierId: supplierFromPdf ?? defaultInvoice.supplierId ?? "",
       products,
       carrierId: defaultInvoice.carrierId ?? "",
       carrier2Id: defaultInvoice.carrier2Id ?? "",
@@ -101,7 +102,9 @@ function pdfDataListToInvoices(
       paidDollarRate: null,
       completed: false,
       completedDate: null,
-      _isDateFromPdf: dateFromPdf, // Marca se a data realmente veio do PDF
+      _isDateFromPdf: dateFromPdf,
+      _isNumberFromPdf: true, // Número vem do PDF
+      _isSupplierFromPdf: !!supplierFromPdf, // Fornecedor reconhecido por alias no import
     };
   });
 }
@@ -389,7 +392,7 @@ export function MultiInvoiceReviewModal({
         id: null,
         number: currentData.invoiceData.number,
         date: dateForApi,
-        supplierId: defaultInvoice.supplierId,
+        supplierId: currentData.invoiceData?.supplierId ?? defaultInvoice.supplierId,
         carrierId: defaultInvoice.carrierId || "",
         carrier2Id: defaultInvoice.carrier2Id || "",
         taxaSpEs:
@@ -452,7 +455,15 @@ export function MultiInvoiceReviewModal({
 
       setSavedIndices((prev) => new Set(prev).add(activeTabIndex));
     }, "saveTabInvoice").catch((err: any) => {
-      const msg = err?.response?.data?.message || err?.message || "Erro ao salvar a invoice.";
+      const data = err?.response?.data;
+      let msg = data?.message || err?.message || "Erro ao salvar a invoice.";
+      // Enriquecer com detalhes do backend (productId inválido, supplierId não encontrado)
+      if (data?.invalidProductIds && Array.isArray(data.invalidProductIds) && data.invalidProductIds.length > 0) {
+        msg += ` IDs inválidos: ${data.invalidProductIds.join(", ")}.`;
+      }
+      if (data?.supplierId) {
+        msg += ` Fornecedor: ${data.supplierId}.`;
+      }
       setOpenNotification({ type: "error", title: "Erro", notification: msg });
     });
   };

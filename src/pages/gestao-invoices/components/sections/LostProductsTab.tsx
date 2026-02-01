@@ -505,8 +505,8 @@ export function LostProductsTab() {
             return (
               <div
                 key={dateKey}
-                className={`border rounded-lg transition-all duration-300 ${
-                  isCompleted ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"
+                className={`border rounded-2xl transition-all duration-300 shadow-sm ${
+                  isCompleted ? "bg-blue-50 border-blue-200" : "bg-white border-gray-100"
                 }`}
               >
                 {/* Header clicável */}

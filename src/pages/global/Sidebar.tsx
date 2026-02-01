@@ -622,24 +622,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
                 setSelected={setSelected}
               />
             )}
-            {/* Este item agora requer validação */}
-            {canShowTab("GERENCIAR_PLANILHAS") && (
-              <>
-                {!isCollapsed && (
-                  <Typography variant="h6" color={colors.greenAccent[300]} sx={{ m: "15px 0 5px 20px" }}>
-                    Planilhas:
-                  </Typography>
-                )}
-                <Item
-                  title="Gerenciar Planilhas"
-                  to="/spreadsheets"
-                  icon={<TableChartOutlinedIcon />}
-                  selected={selected}
-                  setSelected={setSelected}
-                  requiresValidation={true}
-                />
-              </>
-            )}
             {canShowTab("GERENCIAR_INVOICES") && (
               <Item
                 title="Gerenciar Invoices"
@@ -660,25 +642,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isSidebar }) => {
                 requiresValidation={true}
               />
             )}
-            {/* Este item agora requer validação */}
-            {canShowTab("GERENCIAR_BOLETOS") && (
-              <>
-                {!isCollapsed && (
-                  <Typography variant="h6" color={colors.greenAccent[300]} sx={{ m: "15px 0 5px 20px" }}>
-                    Boletos:
-                  </Typography>
-                )}
-                <Item
-                  title="Gerenciar Boletos"
-                  to="/billets-management"
-                  icon={<TableChartOutlinedIcon />}
-                  selected={selected}
-                  setSelected={setSelected}
-                  requiresValidation={true}
-                />
-              </>
-            )}
-            
             {/* Botões de Snapshot - Apenas para MASTER */}
             {user?.role === "MASTER" && !isCollapsed && (
               <Box
