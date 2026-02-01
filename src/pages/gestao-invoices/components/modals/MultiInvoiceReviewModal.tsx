@@ -437,6 +437,7 @@ export function MultiInvoiceReviewModal({
       const dateWithTime = new Date(`${dateStr}T${time}`);
       const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
+      // ✅ Incluir IMEIs diretamente no payload para salvamento automático pelo backend
       const products = currentData.products.map((p) => ({
         id: p.validation.productId,
         name: p.name,
@@ -446,7 +447,8 @@ export function MultiInvoiceReviewModal({
         total: p.amount,
         received: false,
         receivedQuantity: 0,
-        _imeis: p.imeis || [],
+        // ✅ Incluir IMEIs diretamente no payload (backend salva automaticamente)
+        imeis: p.imeis || [],
       }));
 
       const payload = {
@@ -476,43 +478,23 @@ export function MultiInvoiceReviewModal({
       const response = await api.post("/invoice/create", payload);
       const createdInvoice = response.data;
 
-      if (createdInvoice?.products && Array.isArray(createdInvoice.products)) {
-        let savedImeisCount = 0;
-        let totalImeisCount = 0;
-        for (let i = 0; i < products.length; i++) {
-          const localProduct = products[i];
-          const createdProduct = createdInvoice.products[i];
-          if (
-            localProduct._imeis &&
-            Array.isArray(localProduct._imeis) &&
-            localProduct._imeis.length > 0
-          ) {
-            totalImeisCount += localProduct._imeis.length;
-            try {
-              await api.post("/invoice/imeis/save", {
-                invoiceProductId: createdProduct.id,
-                imeis: localProduct._imeis,
-              });
-              savedImeisCount += localProduct._imeis.length;
-            } catch (err: any) {
-              if (err.response?.status !== 409) console.error("Erro ao salvar IMEIs:", err);
-            }
-          }
-        }
-        if (totalImeisCount > 0) {
-          setOpenNotification({
-            type: "success",
-            title: "IMEIs salvos",
-            notification: `${savedImeisCount} de ${totalImeisCount} IMEIs salvos para esta invoice.`,
-          });
-        }
+      // ✅ IMEIs já foram salvos automaticamente pelo backend quando a invoice foi criada
+      // Não é mais necessário chamar /invoice/imeis/save separadamente
+      const totalImeisCount = products.reduce((sum, p) => sum + (p.imeis?.length || 0), 0);
+      if (totalImeisCount > 0) {
+        console.log(`✅ ${totalImeisCount} IMEIs incluídos no payload e salvos automaticamente pelo backend`);
+        setOpenNotification({
+          type: "success",
+          title: "Invoice salva",
+          notification: `Invoice ${currentData.invoiceData.number} salva com ${totalImeisCount} IMEI${totalImeisCount !== 1 ? 's' : ''} automaticamente!`,
+        });
+      } else {
+        setOpenNotification({
+          type: "success",
+          title: "Invoice salva",
+          notification: `Invoice ${currentData.invoiceData.number} salva com sucesso!`,
+        });
       }
-
-      setOpenNotification({
-        type: "success",
-        title: "Invoice salva",
-        notification: `Invoice ${currentData.invoiceData.number} salva com sucesso!`,
-      });
 
       setSavedIndices((prev) => new Set(prev).add(activeTabIndex));
     }, "saveTabInvoice").catch((err: any) => {

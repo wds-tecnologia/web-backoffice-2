@@ -522,6 +522,20 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       const dateWithTime = new Date(`${dateStr}T${time}`);
       const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
+      // Preparar produtos com IMEIs incluídos no payload (salvamento automático)
+      const productsWithImeis = currentInvoice.products.map((product) => ({
+        id: product.productId || product.id,
+        name: product.name,
+        quantity: product.quantity,
+        value: product.value,
+        weight: product.weight || 0,
+        total: product.total,
+        received: product.received || false,
+        receivedQuantity: product.receivedQuantity || 0,
+        // ✅ Incluir IMEIs diretamente no payload para salvamento automático
+        imeis: product._imeis || [],
+      }));
+
       const response = await api.post("/invoice/create", {
         ...currentInvoice,
         date: dateForApi,
@@ -529,6 +543,7 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
           currentInvoice.taxaSpEs == null || currentInvoice.taxaSpEs === ""
             ? "0"
             : currentInvoice.taxaSpEs.toString().trim(),
+        products: productsWithImeis, // Usar produtos com IMEIs incluídos
       });
 
       // Verificar se o número foi ajustado automaticamente
@@ -559,47 +574,11 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         });
       }
 
-      // ✨ NOVO: Salvar IMEIs automaticamente se houver produtos com IMEIs
-      const createdInvoice = response.data;
-      if (createdInvoice?.products && Array.isArray(createdInvoice.products)) {
-        let savedImeisCount = 0;
-        let totalImeisCount = 0;
-
-        for (let i = 0; i < currentInvoice.products.length; i++) {
-          const localProduct = currentInvoice.products[i];
-          const createdProduct = createdInvoice.products[i];
-
-          // Verificar se tem IMEIs no produto local (campo temporário _imeis)
-          if (localProduct._imeis && Array.isArray(localProduct._imeis) && localProduct._imeis.length > 0) {
-            totalImeisCount += localProduct._imeis.length;
-
-            try {
-              await api.post("/invoice/imeis/save", {
-                invoiceProductId: createdProduct.id,
-                imeis: localProduct._imeis,
-              });
-              savedImeisCount += localProduct._imeis.length;
-              console.log(`✅ ${localProduct._imeis.length} IMEIs salvos para produto ${localProduct.name}`);
-            } catch (error: any) {
-              console.error(`❌ Erro ao salvar IMEIs do produto ${localProduct.name}:`, error);
-              
-              // Se for erro 409 (duplicados), mostrar aviso mas não bloquear
-              if (error.response?.status === 409) {
-                const duplicates = error.response?.data?.data?.duplicates || [];
-                console.warn(`⚠️ ${duplicates.length} IMEIs duplicados encontrados:`, duplicates);
-              }
-            }
-          }
-        }
-
-        // Mostrar notificação sobre IMEIs salvos
-        if (totalImeisCount > 0) {
-          setOpenNotification({
-            type: savedImeisCount === totalImeisCount ? "success" : "warning",
-            title: savedImeisCount === totalImeisCount ? "IMEIs Salvos!" : "Atenção",
-            notification: `${savedImeisCount} de ${totalImeisCount} IMEIs foram salvos com sucesso.`,
-          });
-        }
+      // ✅ IMEIs já foram salvos automaticamente pelo backend quando a invoice foi criada
+      // Não é mais necessário chamar /invoice/imeis/save separadamente
+      const totalImeisCount = productsWithImeis.reduce((sum, p) => sum + (p.imeis?.length || 0), 0);
+      if (totalImeisCount > 0) {
+        console.log(`✅ ${totalImeisCount} IMEIs incluídos no payload e salvos automaticamente pelo backend`);
       }
 
       setPdfData(null);
