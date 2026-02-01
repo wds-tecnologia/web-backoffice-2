@@ -6,13 +6,13 @@ import { matchSearchTerms } from "../utils/searchMatch";
 import { formatDateToBR } from "../utils/format";
 
 interface ImeiData {
+  id: string;
   imei: string;
   createdAt: string;
   product: {
     id: string;
     name: string;
     code: string;
-    description: string;
   };
   invoice: {
     id: string;
@@ -40,6 +40,16 @@ interface ImeiData {
   };
 }
 
+interface ImeiListResponse {
+  imeis: ImeiData[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 interface ImeiListItem {
   imei: string;
   productName: string;
@@ -56,6 +66,12 @@ export function ImeiSearchTab() {
   const [isLoadingImeis, setIsLoadingImeis] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [allImeisData, setAllImeisData] = useState<ImeiData[]>([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 100,
+    total: 0,
+    totalPages: 0,
+  });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { setOpenNotification } = useNotification();
 
@@ -88,29 +104,55 @@ export function ImeiSearchTab() {
     }
   }, [searchTerm, allImeis]);
 
-  const fetchAllImeis = async () => {
+  const fetchAllImeis = async (page: number = 1, limit: number = 100) => {
     setIsLoadingImeis(true);
     try {
-      // Endpoint alinhado com os demais: /invoice/imeis/... (plural)
-      const response = await api.get("/invoice/imeis/list-all");
-      const imeisData: ImeiData[] = response.data.imeis || response.data || [];
+      // Endpoint com paginação e suporte a filtros opcionais
+      const response = await api.get<ImeiListResponse>("/invoice/imeis/list-all", {
+        params: {
+          page,
+          limit,
+        },
+      });
       
-      setAllImeisData(Array.isArray(imeisData) ? imeisData : []);
+      const data: ImeiListResponse = response.data;
+      const imeisData: ImeiData[] = data.imeis || [];
       
-      const list = Array.isArray(imeisData) ? imeisData : [];
-      const imeisList: ImeiListItem[] = list.map((item: ImeiData) => ({
+      // Se for a primeira página, substituir; senão, adicionar (para scroll infinito futuro)
+      if (page === 1) {
+        setAllImeisData(imeisData);
+      } else {
+        setAllImeisData((prev) => [...prev, ...imeisData]);
+      }
+      
+      // Atualizar lista simplificada para dropdown
+      const imeisList: ImeiListItem[] = imeisData.map((item: ImeiData) => ({
         imei: item.imei,
         productName: item.product?.name ?? "",
         invoiceNumber: item.invoice?.number ?? "",
       }));
       
-      setAllImeis(imeisList);
-      setFilteredImeis(imeisList);
+      if (page === 1) {
+        setAllImeis(imeisList);
+        setFilteredImeis(imeisList);
+      } else {
+        setAllImeis((prev) => [...prev, ...imeisList]);
+        setFilteredImeis((prev) => [...prev, ...imeisList]);
+      }
+      
+      // Atualizar paginação
+      if (data.pagination) {
+        setPagination(data.pagination);
+      }
     } catch (error: any) {
       console.warn("Lista de IMEIs não carregada:", error?.response?.status ?? error?.message);
-      setAllImeis([]);
-      setFilteredImeis([]);
-      setAllImeisData([]);
+      // Não mostrar erro para o usuário - apenas logar e deixar lista vazia
+      // A busca individual ainda funciona mesmo sem a lista completa
+      if (page === 1) {
+        setAllImeis([]);
+        setFilteredImeis([]);
+        setAllImeisData([]);
+      }
     } finally {
       setIsLoadingImeis(false);
     }
@@ -271,8 +313,10 @@ export function ImeiSearchTab() {
         <div className="mt-3 text-sm text-gray-500">
           {isLoadingImeis ? (
             "Carregando..."
+          ) : pagination.total > 0 ? (
+            `${pagination.total} IMEI${pagination.total !== 1 ? "s" : ""} cadastrado${pagination.total !== 1 ? "s" : ""} no sistema${pagination.totalPages > 1 ? ` (página ${pagination.page} de ${pagination.totalPages})` : ""}`
           ) : (
-            `${allImeis.length} IMEI${allImeis.length !== 1 ? "s" : ""} cadastrado${allImeis.length !== 1 ? "s" : ""} no sistema`
+            `${allImeis.length} IMEI${allImeis.length !== 1 ? "s" : ""} carregado${allImeis.length !== 1 ? "s" : ""}`
           )}
         </div>
       </div>

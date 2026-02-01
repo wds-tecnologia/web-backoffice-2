@@ -589,7 +589,7 @@ export function InvoiceHistoryReport({
                   ID: <span id="modalInvoiceSupplier">{selectedInvoice.id}</span>
                 </p>
                 <p className="text-sm text-gray-600">
-                  Fornecedor: <span id="modalInvoiceSupplier">{selectedInvoice.supplier.name}</span>
+                  Fornecedor: <span id="modalInvoiceSupplier">{selectedInvoice.supplier?.name || "—"}</span>
                 </p>
                 <p className="text-sm text-gray-600">
                   Data:{" "}
@@ -602,8 +602,11 @@ export function InvoiceHistoryReport({
                 <p className="text-sm text-gray-600">
                   Freteiro:{" "}
                   <span id="modalInvoiceCarrier">
-                    {selectedInvoice.carrier.name} - {selectedInvoice.carrier?.value}{" "}
-                    {getShippingTypeText(selectedInvoice.carrier?.type)}
+                    {selectedInvoice.carrier
+                      ? `${selectedInvoice.carrier.name} - ${selectedInvoice.carrier.value} ${getShippingTypeText(
+                          selectedInvoice.carrier.type
+                        )}`
+                      : "não existe"}
                   </span>
                 </p>
                 <p className="text-sm text-gray-600">
