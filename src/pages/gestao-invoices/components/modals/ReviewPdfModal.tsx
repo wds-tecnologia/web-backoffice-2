@@ -70,6 +70,8 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showRawDataModal, setShowRawDataModal] = useState(false);
+  const [showSupplierLinkPopup, setShowSupplierLinkPopup] = useState(false);
+  const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
@@ -163,6 +165,37 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     } catch (err) {
       console.warn("Falha ao salvar alias de fornecedor:", err);
     }
+  };
+
+  const handleUpdateSupplierLink = async () => {
+    if (!pendingSupplierId || !editedData) return;
+    
+    const pdfName = (editedData.invoiceData.pdfSupplierName ?? "").trim();
+    if (!pdfName) {
+      Swal.fire({
+        icon: "warning",
+        title: "Nome na nota necessário",
+        text: "Preencha o nome na nota antes de vincular o fornecedor.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
+    setEditedData({
+      ...editedData,
+      invoiceData: {
+        ...editedData.invoiceData,
+        supplierId: pendingSupplierId,
+      },
+    });
+
+    await saveSupplierAlias(pdfName, pendingSupplierId);
+    setShowSupplierLinkPopup(false);
+    setPendingSupplierId("");
   };
 
   const handleLinkProduct = async (index: number, productId: string) => {
@@ -442,7 +475,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                   Fornecedor
                 </label>
                 {editedData.invoiceData.supplierId ? (
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 relative">
                     <div className="flex-1">
                       <div className="text-xs text-gray-500 mb-1">Nome na nota (extraído do PDF)</div>
                       <input
@@ -452,14 +485,75 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                         className="w-full px-3 py-2 border border-gray-300 bg-gray-50 rounded-xl text-sm cursor-not-allowed"
                       />
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 relative">
                       <div className="text-xs text-gray-500 mb-1">Fornecedor vinculado</div>
-                      <div className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPendingSupplierId(editedData.invoiceData.supplierId || "");
+                          setShowSupplierLinkPopup(true);
+                        }}
+                        className="w-full text-left text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 flex items-center gap-2 hover:bg-green-100 transition-colors"
+                      >
                         <Check size={16} className="text-green-600" />
-                        <span>
+                        <span className="flex-1">
                           {suppliers.find((s) => s.id === editedData.invoiceData.supplierId)?.name || "Fornecedor identificado automaticamente"}
                         </span>
-                      </div>
+                        <Link2 size={14} className="text-green-600" />
+                      </button>
+                      
+                      {/* Popup flutuante para atualizar vínculo do fornecedor */}
+                      {showSupplierLinkPopup && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-40"
+                            onClick={() => {
+                              setShowSupplierLinkPopup(false);
+                              setPendingSupplierId("");
+                            }}
+                          />
+                          <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                            <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
+                              <Building2 size={18} />
+                              Atualizar Vínculo de Fornecedor
+                            </div>
+                            
+                            <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800 flex items-center gap-2">
+                              <Check size={14} />
+                              Vínculo atual será atualizado
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 mb-3">
+                              Selecione um fornecedor do banco:
+                            </p>
+                            <select
+                              value={pendingSupplierId}
+                              onChange={(e) => setPendingSupplierId(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-300 mb-3"
+                            >
+                              <option value="">Selecione o fornecedor...</option>
+                              {suppliers.map((s) => (
+                                <option key={s.id} value={s.id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleUpdateSupplierLink}
+                              disabled={!pendingSupplierId}
+                              className={`w-full px-3 py-1.5 rounded-md text-sm ${
+                                pendingSupplierId
+                                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                              }`}
+                            >
+                              OK
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 max-w-[200px] pt-6">
                       ✅ Já tinha vínculo; nas próximas importações continua reconhecendo automaticamente.
