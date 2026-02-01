@@ -374,6 +374,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
       }
 
       const supplierFromPdf = editedData.invoiceData?.supplierId;
+      // Quando vem do PDF (importação), sempre bloquear os 3 campos mesmo que não tenha vínculo de fornecedor ainda
+      const hasPdfSupplierName = !!(editedData.invoiceData?.pdfSupplierName?.trim());
+      const hasPdfNumber = !!(editedData.invoiceData?.number?.trim());
 
       // Preencher número, data e fornecedor da invoice automaticamente (bloqueados quando vêm do PDF)
       setCurrentInvoice({
@@ -381,9 +384,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         number: editedData.invoiceData.number,
         date: formattedDate,
         supplierId: supplierFromPdf ?? currentInvoice.supplierId,
-        _isDateFromPdf: dateFromPdf,
-        _isNumberFromPdf: true, // Número sempre vem do PDF
-        _isSupplierFromPdf: !!supplierFromPdf, // Fornecedor reconhecido por alias no import
+        _isDateFromPdf: dateFromPdf, // true quando data veio do PDF
+        _isNumberFromPdf: hasPdfNumber, // true quando número veio do PDF (sempre vem quando é importação)
+        _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName, // Bloquear se tem supplierId OU se tem pdfSupplierName (veio do PDF)
       });
 
       // Adicionar produtos do PDF ao currentInvoice (sku não vem mais; usar só validation.productId)
@@ -408,9 +411,9 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
         date: formattedDate,
         supplierId: supplierFromPdf ?? currentInvoice.supplierId,
         products: [...currentInvoice.products, ...newProducts],
-        _isDateFromPdf: dateFromPdf,
-        _isNumberFromPdf: true,
-        _isSupplierFromPdf: !!supplierFromPdf,
+        _isDateFromPdf: dateFromPdf, // true quando data veio do PDF
+        _isNumberFromPdf: hasPdfNumber, // true quando número veio do PDF (sempre vem quando é importação)
+        _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName, // Bloquear se tem supplierId OU se tem pdfSupplierName (veio do PDF)
       });
 
       if (pdfDataQueue.length > 0) {
