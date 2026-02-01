@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, Link2, Eye, Building2 } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, Link2, Eye, Building2, FileText } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
@@ -69,6 +69,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showRawDataModal, setShowRawDataModal] = useState(false);
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
@@ -265,6 +266,87 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     }).format(value);
   };
 
+  // Formatar dados em Markdown para exibição
+  const formatDataAsMarkdown = (data: PdfData): string => {
+    const invoiceNumber = data.invoiceData.number || "N/A";
+    const invoiceDate = data.invoiceData.date 
+      ? new Date(data.invoiceData.date).toLocaleDateString("pt-BR")
+      : "N/A";
+    const supplierName = data.invoiceData.pdfSupplierName || "N/A";
+    
+    let markdown = `# Lista de Produtos - Invoice #${invoiceNumber}\n\n`;
+    markdown += `**Data:** ${invoiceDate}\n`;
+    markdown += `**Fornecedor:** ${supplierName}\n\n`;
+    markdown += `---\n\n`;
+    markdown += `## Produtos (em ordem do PDF)\n\n`;
+
+    data.products.forEach((product, index) => {
+      const productName = product.name;
+      const rate = formatCurrency(product.rate);
+      const totalQty = product.quantity;
+      const amount = formatCurrency(product.amount);
+      
+      // Extrair cor do nome (última palavra que seja uma cor conhecida)
+      const colors = ['BLACK', 'WHITE', 'PINK', 'NATURAL', 'BLUE', 'GREEN', 'ORANGE', 'SILVER', 'GOLD', 'PURPLE', 'TEAL', 'STARLIGHT', 'ULTRAMARINE', 'DESERT', 'RED', 'YELLOW', 'PINK NEW', 'BLACK NEW', 'GREEN NEW', 'ORANGE NEW', 'BLUE NEW'];
+      let extractedColor = null;
+      for (const color of colors) {
+        const regex = new RegExp(`\\b${color.replace(/\s+/g, '\\s+')}\\b`, 'i');
+        if (regex.test(productName)) {
+          extractedColor = color.toUpperCase();
+          break;
+        }
+      }
+      
+      // Nome base sem a cor (para produtos P2/P3 que têm cor separada)
+      const baseName = extractedColor ? productName.replace(new RegExp(`\\s*${extractedColor.replace(/\s+/g, '\\s+')}\\s*$`, 'i'), '').trim() : productName;
+      
+      markdown += `### ${index + 1}. ${baseName}${extractedColor ? ` ${extractedColor}` : ''}\n`;
+      markdown += `**Rate:** ${rate} | **Total:** ${totalQty} unidade${totalQty !== 1 ? 's' : ''} | **Amount:** ${amount}\n`;
+      
+      if (extractedColor) {
+        markdown += `- **${extractedColor}:** ${product.quantity} unidade${product.quantity !== 1 ? 's' : ''}\n`;
+      } else {
+        markdown += `- **Quantidade:** ${product.quantity} unidade${product.quantity !== 1 ? 's' : ''}\n`;
+      }
+      
+      // Adicionar IMEIs se houver
+      if (product.imeis && product.imeis.length > 0) {
+        markdown += `\n**IMEIs (${product.imeis.length}):**\n`;
+        product.imeis.forEach((imei) => {
+          markdown += `- ${imei}\n`;
+        });
+      }
+      
+      markdown += `\n`;
+    });
+
+    // Resumo
+    markdown += `---\n\n`;
+    markdown += `## Resumo\n\n`;
+    markdown += `- **Total de linhas de produto no PDF:** ${data.products.length}\n`;
+    
+    const p2p3Products = data.products.filter(p => 
+      p.name.match(/P2|P3/i) && !p.name.match(/NEW/i)
+    ).length;
+    const newProducts = data.products.filter(p => 
+      p.name.match(/NEW/i)
+    ).length;
+    
+    markdown += `- **Produtos P2/P3 (expandidos por cor):** ${p2p3Products} produtos base\n`;
+    markdown += `- **Produtos NEW (cor no nome):** ${newProducts} produtos\n`;
+    markdown += `- **Total de itens únicos:** ${data.products.length} itens\n\n`;
+    
+    markdown += `---\n\n`;
+    markdown += `## Observações\n\n`;
+    markdown += `- **Produtos P2/P3:** Quantidades são fracionadas por cor\n`;
+    markdown += `- **Produtos NEW:** Cor já está no nome, quantidade é total daquela cor\n`;
+    
+    const totalImeis = data.products.reduce((sum, p) => sum + (p.imeis?.length || 0), 0);
+    markdown += `- **Total de IMEIs extraídos:** ${totalImeis}\n`;
+
+    return markdown;
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div
@@ -279,9 +361,18 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
               Confira os dados extraídos do PDF e faça ajustes se necessário
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowRawDataModal(true)} 
+              className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded hover:bg-blue-50"
+              title="Ver dados brutos em Markdown"
+            >
+              <FileText size={20} />
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -669,6 +760,68 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
           </button>
         </div>
       </div>
+
+      {/* Modal de Dados Brutos (Markdown) */}
+      {showRawDataModal && editedData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header do Modal de Dados Brutos */}
+            <div className="flex justify-between items-center p-6 border-b">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Dados Brutos Extraídos do PDF</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Dados formatados em Markdown conforme extraídos do PDF
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowRawDataModal(false)} 
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Conteúdo Markdown */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-end mb-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(formatDataAsMarkdown(editedData));
+                      Swal.fire({
+                        icon: "success",
+                        title: "Copiado!",
+                        text: "Dados copiados para a área de transferência",
+                        timer: 1500,
+                        showConfirmButton: false,
+                      });
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded hover:bg-blue-50 flex items-center gap-1"
+                  >
+                    Copiar Markdown
+                  </button>
+                </div>
+                <pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 max-h-[60vh] overflow-y-auto">
+                  {formatDataAsMarkdown(editedData)}
+                </pre>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
+              <button
+                onClick={() => setShowRawDataModal(false)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

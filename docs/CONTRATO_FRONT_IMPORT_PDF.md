@@ -75,10 +75,31 @@ Documento para o time de frontend: o que o backend retorna no **POST /invoice/im
 
 | Regra | Ação no front |
 |-------|----------------|
-| `sku` vazio | Não usar `sku`; usar `validation.productId`; exigir vínculo quando `productId` for null. |
+| `sku` vazio | Não usar `sku`; usar `validation.productId`; exigir vínculo quando `productId` for null. Coluna SKU: ocultar ou mostrar "—". |
 | Nome | Exibir o `name` como vem; não remover SKU (já vem só modelo). |
-| Ordem | Manter a ordem de `products` ao exibir. |
+| Ordem | **Manter a ordem de `products` ao exibir** – não reordenar por nome/SKU/cor. |
 | Salvar invoice | Enviar `id` = `validation.productId` ou id do produto selecionado; não enviar item sem `id` válido. |
+| Cores no nome | Backend **nunca** envia produto sem cor: sempre `name` com cor (ex.: "... P2 PINK", "... P2 BLACK") ou " COR NÃO IDENTIFICADA" se não detectar variante. Nota não lista produto sem cor. |
+| IMEIs divergindo | Se `quantity` ≠ `imeis.length`, exibir alerta (como já faz). Backend compromete-se a enviar qty IMEIs por variante (próximas qty linhas após "05 BLACK:"). |
+
+---
+
+## O que o backend garante
+
+- **Ordem:** `products` na mesma ordem da invoice/PDF.
+- **Cores:** Cada variante com `name` = modelo + " " + cor (PINK, BLACK, NATURAL, etc.); nome base sem "APPLE" duplicado no final.
+- **IMEIs:** Após "05 BLACK:", as próximas 5 linhas = 5 IMEIs dessa variante; `quantity` deve bater com `imeis.length`.
+
+---
+
+## Checklist para o front
+
+- [ ] Não usar `sku` da resposta (sempre vazio); usar `validation.productId` para salvar.
+- [ ] Quando `productId` for null, exigir vínculo do usuário antes de permitir salvar a invoice.
+- [ ] Exibir `products` na **ordem recebida** (não ordenar por nome/SKU/cor).
+- [ ] Exibir o `name` como vem (já com cor ou " COR NÃO IDENTIFICADA"); não remover nada do nome.
+- [ ] Se `quantity` ≠ `imeis.length`, exibir alerta de IMEIs divergentes.
+- [ ] Coluna SKU: ocultar ou mostrar "—" quando vazio.
 
 ---
 
