@@ -86,6 +86,13 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
         const formData = new FormData();
         formData.append("file", file);
         const response = await api.post("/invoice/import-from-pdf", formData);
+        
+        // Console.log com resposta bruta do backend (F12)
+        console.log(`%c📄 [IMPORT PDF] Resposta bruta do backend para "${file.name}":`, 
+          "color: #2563eb; font-weight: bold; font-size: 14px;", 
+          response.data
+        );
+        
         results.push(response.data);
       } catch (error: any) {
         const msg =

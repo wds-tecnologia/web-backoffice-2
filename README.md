@@ -1,5 +1,11 @@
 # Pet Store Backoffice - Guia de Projeto e Memória Universal
 
+## Documentação
+
+- **Prompts e contratos do backend:** `docs/PROMPTS_E_CONTRATOS_BACKEND.md` – índice de todos os prompts/contratos do backend que o front deve seguir (import PDF, histórico de recebimentos, sessão expirada, listas de compras PUT, invoices, IMEIs, etc.). Use esse doc como ponto único para localizar o contrato de cada fluxo.
+
+---
+
 ## Visão Geral
 
 Este projeto é um backoffice administrativo com foco em experiência moderna, responsiva e amigável, utilizando React, MUI, TailwindCSS e lógicas de permissão detalhadas. O objetivo deste README é servir como memória universal para desenvolvedores e IAs futuras, garantindo consistência visual, funcional e de UX.
