@@ -65,6 +65,7 @@ const FornecedoresTab: React.FC = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [operacoes, setOperacoes] = useState<Operacao[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [newPaymentId, setNewPaymentId] = useState<string | null>(null);
   const [saldoAcumulado, setSaldoAcumulado] = useState(0);
@@ -305,27 +306,40 @@ const FornecedoresTab: React.FC = () => {
     }
   };
 
-  const todasTransacoes = [
-    ...(fornecedorSelecionado?.transacoes || []),
-    ...operacoes
-      .filter((op) => op.supplierId === fornecedorSelecionado?.id && op.comission !== 0 && op.comission === null)
-      .map((op) => ({
-        id: `op-${op.id}`,
-        date: op.date || new Date().toISOString(),
-        valor: -(op.value || 0) / (op.supplierTax || fornecedorSelecionado?.tax || 1),
-        descricao: `OPERAÇÃO #${op.id} · ${op.city?.toUpperCase() || ""}`,
-        tipo: "debito",
-      })),
-    ...payments
-      .filter((p) => p.supplierId === fornecedorSelecionado?.id)
-      .map((p) => ({
-        id: `pay-${p.id}`,
-        date: p.date,
-        valor: p.amount,
-        descricao: p.description.toUpperCase(),
-        tipo: "pagamento",
-      })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // ✅ Usar useMemo para recalcular quando as dependências mudarem
+  const todasTransacoes = useMemo(() => {
+    return [
+      ...(fornecedorSelecionado?.transacoes || []),
+      ...operacoes
+        .filter((op) => op.supplierId === fornecedorSelecionado?.id && op.comission !== 0 && op.comission === null)
+        .map((op) => ({
+          id: `op-${op.id}`,
+          date: op.date || new Date().toISOString(),
+          valor: -(op.value || 0) / (op.supplierTax || fornecedorSelecionado?.tax || 1),
+          descricao: `OPERAÇÃO #${op.id} · ${op.city?.toUpperCase() || ""}`,
+          tipo: "debito",
+        })),
+      ...payments
+        .filter((p) => p.supplierId === fornecedorSelecionado?.id)
+        .map((p) => ({
+          id: `pay-${p.id}`,
+          date: p.date,
+          valor: p.amount,
+          descricao: p.description.toUpperCase(),
+          tipo: "pagamento",
+        })),
+      // ✅ Incluir invoices do fornecedor nas transações
+      ...invoices
+        .filter((inv: any) => inv.supplierId === fornecedorSelecionado?.id)
+        .map((inv: any) => ({
+          id: `inv-${inv.id}`,
+          date: inv.date || new Date().toISOString(),
+          valor: -(inv.subAmount || 0), // Invoices são sempre saídas (negativas)
+          descricao: `INVOICE #${inv.number || inv.id}`,
+          tipo: "debito",
+        })),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [fornecedorSelecionado, operacoes, payments, invoices]);
 
   const filtrarTransacoesPorData = (transacoes: any[]) => {
     if (!filterStartDate && !filterEndDate) return transacoes;
