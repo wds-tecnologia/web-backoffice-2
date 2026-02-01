@@ -65,6 +65,10 @@ Regras para **IMEIs** na DESCRIPTION:
 - Ordem dos IMEIs na lista deve refletir a ordem no PDF.
 - A quantidade de IMEIs por produto deve bater com **QTY** quando possível.
 
+**⚠️ Ordem dos produtos na resposta:**
+
+Os produtos retornados em `products` **devem vir na ordem original da invoice** (ordem em que aparecem no PDF), **não em ordem alfabética**. O front exibe na ordem recebida; a nota deve ser fiel à sequência da invoice.
+
 ---
 
 ## ⚠️ CRÍTICO - Produtos com Variantes (Cores)
