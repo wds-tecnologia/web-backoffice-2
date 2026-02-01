@@ -155,15 +155,15 @@ export default function InvocesManagement() {
     <ActionLoadingProvider>
       <DisableButtonsWrapper>
         <div className="bg-gray-50 min-h-screen">
-          <div className="container mx-auto px-4 py-8">
-            <header className="mb-8">
+          <div className="w-full px-2 py-4">
+            <header className="mb-4">
               <h1 className="text-3xl font-bold text-blue-800">Sistema de Gestão de Invoices</h1>
               <p className="text-gray-600">Controle completo de produtos, invoices e fornecedores</p>
             </header>
 
             <Tabs activeTab={activeTab} setActiveTab={setActiveTab} />
 
-            <div className="mt-6">
+            <div className="mt-4">
               {activeTab === "invoices" && canShowTab("INVOICES") && (
                 <InvoicesTab
                   currentInvoice={currentInvoice}

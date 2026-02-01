@@ -627,12 +627,12 @@ export function MultiInvoiceReviewModal({
                     </label>
                     {currentData.invoiceData.supplierId ? (
                       <div className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
-                        ✅ Identificado automaticamente
+                        ✅ Fornecedor identificado automaticamente (já tinha vínculo)
                       </div>
                     ) : (
                       <div className="flex flex-wrap gap-3 items-end">
                         <div className="flex-1 min-w-[160px]">
-                          <span className="text-xs text-gray-500 block mb-1">Nome na nota (para vínculo)</span>
+                          <span className="text-xs text-gray-500 block mb-1">Nome na nota (pode vir do PDF; digite para salvar vínculo)</span>
                           <input
                             type="text"
                             placeholder="Ex: DISTRIBUIDORA XYZ"
@@ -677,7 +677,7 @@ export function MultiInvoiceReviewModal({
                             ))}
                           </select>
                         </div>
-                        <p className="text-xs text-gray-500">Vincule aqui para reconhecer nas próximas importações.</p>
+                        <p className="text-xs text-gray-500">Vincule uma vez; nas próximas importações o sistema identifica o fornecedor automaticamente.</p>
                       </div>
                     )}
                   </div>
