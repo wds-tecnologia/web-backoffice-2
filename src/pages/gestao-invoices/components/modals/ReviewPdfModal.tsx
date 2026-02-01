@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, Link2, Eye } from "lucide-react";
+import { X, Save, AlertTriangle, Package, Check, Link2, Eye, Building2 } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
@@ -38,6 +38,8 @@ export interface PdfData {
     emails: string[];
     /** Preenchido pelo backend quando há alias de fornecedor correspondente */
     supplierId?: string;
+    /** Nome do fornecedor extraído do PDF (para salvar alias ao vincular). Backend deve retornar quando supplierId é null. */
+    pdfSupplierName?: string;
   };
   products: PdfProduct[];
   summary: {
@@ -63,6 +65,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   const [imeiPopupIndex, setImeiPopupIndex] = useState<number | null>(null);
   const [pendingLinkProductId, setPendingLinkProductId] = useState<string>("");
   const [productsFromDb, setProductsFromDb] = useState<ProductFromDb[]>([]);
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [numberExistsInDb, setNumberExistsInDb] = useState(false);
   const [numberCheckLoading, setNumberCheckLoading] = useState(false);
   const numberCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,17 +78,26 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     }
   }, [isOpen, pdfData]);
 
-  // Buscar produtos do banco para vincular
+  // Buscar produtos e fornecedores do banco para vincular
   useEffect(() => {
     if (!isOpen) return;
-    api
-      .get("/invoice/product")
-      .then((res) => {
+    Promise.all([
+      api.get("/invoice/product").then((res) => {
         const raw = res.data;
-        const list = Array.isArray(raw) ? raw : raw?.products ?? [];
-        setProductsFromDb(list);
-      })
-      .catch(() => setProductsFromDb([]));
+        return Array.isArray(raw) ? raw : raw?.products ?? [];
+      }),
+      api.get("/invoice/supplier").then((res) => res.data).catch(() => []),
+    ]).then(([products, suppliersData]) => {
+      setProductsFromDb(products);
+      setSuppliers(
+        Array.isArray(suppliersData)
+          ? suppliersData.filter((s: any) => s.active !== false).map((s: any) => ({ id: s.id, name: s.name }))
+          : []
+      );
+    }).catch(() => {
+      setProductsFromDb([]);
+      setSuppliers([]);
+    });
   }, [isOpen]);
 
   // Verificar se número da invoice já existe no BD (debounced)
@@ -138,6 +150,17 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     } catch (err) {
       // Silencioso - não bloqueia o fluxo se falhar
       console.warn("Falha ao salvar alias de produto:", err);
+    }
+  };
+
+  const saveSupplierAlias = async (pdfSupplierName: string, supplierId: string) => {
+    try {
+      await api.post("/invoice/supplier/alias", {
+        pdfSupplierName: pdfSupplierName.trim().toLowerCase(),
+        supplierId,
+      });
+    } catch (err) {
+      console.warn("Falha ao salvar alias de fornecedor:", err);
     }
   };
 
@@ -201,7 +224,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     
     if (imeisInvalid.length > 0) {
       const productsWithIssues = imeisInvalid.map(p => 
-        `${p.name}: ${p.imeis?.length || 0} IMEIs para ${p.quantity} produtos`
+        `${p.name}: ${p.imeis?.length || 0} IMEIs para ${p.quantity} unidades`
       ).join('\n');
       
       const result = await Swal.fire({
@@ -209,7 +232,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
         title: "⚠️ Aviso: IMEIs Inconsistentes",
         html: `
           <div class="text-left">
-            <p class="mb-3">Alguns produtos têm quantidade de IMEIs diferente da quantidade de produtos:</p>
+            <p class="mb-3">Alguns produtos têm quantidade de IMEIs diferente da quantidade de unidades (esperado: 1 IMEI por unidade):</p>
             <pre class="bg-yellow-50 p-3 rounded text-xs border border-yellow-200 max-h-40 overflow-y-auto">${productsWithIssues}</pre>
             <p class="mt-3 text-sm text-gray-600">
               <strong>Deseja continuar mesmo assim?</strong><br/>
@@ -322,6 +345,66 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                   {editedData.invoiceData.emails.join(", ") || "Nenhum email encontrado"}
                 </div>
               </div>
+              <div className="md:col-span-3">
+                <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+                  <Building2 size={14} />
+                  Fornecedor
+                </label>
+                {editedData.invoiceData.supplierId ? (
+                  <div className="text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                    ✅ Identificado automaticamente (nas próximas importações será reconhecido)
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-3 items-end">
+                    <div className="flex-1 min-w-[180px]">
+                      <span className="text-xs text-gray-500 block mb-1">Nome na nota (para salvar vínculo)</span>
+                      <input
+                        type="text"
+                        placeholder="Ex: DISTRIBUIDORA XYZ (ou deixe em branco)"
+                        value={editedData.invoiceData.pdfSupplierName ?? ""}
+                        onChange={(e) =>
+                          setEditedData({
+                            ...editedData,
+                            invoiceData: {
+                              ...editedData.invoiceData,
+                              pdfSupplierName: e.target.value || undefined,
+                            },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      <span className="text-xs text-gray-500 block mb-1">Vincular a (fornecedor do sistema)</span>
+                      <select
+                        value={editedData.invoiceData.supplierId ?? ""}
+                        onChange={(e) => {
+                          const supplierId = e.target.value;
+                          setEditedData({
+                            ...editedData,
+                            invoiceData: { ...editedData.invoiceData, supplierId: supplierId || undefined },
+                          });
+                          const pdfName = (editedData.invoiceData.pdfSupplierName ?? "").trim();
+                          if (supplierId && pdfName) {
+                            saveSupplierAlias(pdfName, supplierId);
+                          }
+                        }}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
+                      >
+                        <option value="">Selecione o fornecedor...</option>
+                        {suppliers.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="text-xs text-gray-500 w-full">
+                      Se vincular aqui, o fornecedor será reconhecido automaticamente nas próximas importações.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -433,7 +516,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                           {product.imeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
-                                              Quantidade diferente: {product.imeis.length} IMEIs para {product.quantity} produtos
+                                              Quantidade diferente: {product.imeis.length} IMEIs para {product.quantity} unidades (esperado: 1 IMEI por unidade)
                                             </div>
                                           )}
                                           

@@ -396,3 +396,161 @@ function parseProductVariants(pdfProduct) {
 ## Prioridade
 
 🔴 **CRÍTICO** - Sem isso, o sistema de importação não funciona corretamente para produtos com variantes (que é o caso mais comum de iPhones/Samsungs).
+
+---
+
+## Exemplo Real: DESCRIPTION com 5 variantes
+
+Segue um **exemplo real** de como a coluna DESCRIPTION aparece no PDF e como deve ser separada.
+
+### Visão rápida: separação (o que você vê na DESCRIPTION)
+
+```
+┌─ Produto 1 ───────────────────────────────┐
+│ 08 BLACK:                                 │
+│ 359954314115887                           │
+│ 352404326401500                           │
+│ 355616950757660                           │
+│ 352306399178479                           │
+│ 359954314761045                           │
+│ 350340255918027                           │
+│ 354563837571768                           │
+│ 357189983013632                           │  ← 8 IMEIs
+└───────────────────────────────────────────┘
+
+┌─ Produto 2 ───────────────────────────────┐
+│ 07 ULTRAMARINE:                           │
+│ 353685838103613                           │
+│ 356166895648011                           │
+│ 357189989303359                           │
+│ 359206282759216                           │
+│ 356140778642979                           │
+│ 354563832891732                           │
+│ 351935561858608                           │  ← 7 IMEIs
+└───────────────────────────────────────────┘
+
+┌─ Produto 3 ───────────────────────────────┐
+│ 03 TEAL:                                  │
+│ 351582370778211                           │
+│ 351582370720676                           │
+│ 351935561150220                           │  ← 3 IMEIs
+└───────────────────────────────────────────┘
+
+┌─ Produto 4 ───────────────────────────────┐
+│ 02 STARLIGHT:                             │
+│ 353685838211325                           │
+│ 353685837780296                           │  ← 2 IMEIs
+└───────────────────────────────────────────┘
+
+┌─ Produto 5 ───────────────────────────────┐
+│ 02 PINK:                                  │
+│ 357004285459302                           │
+│ 351698476259425                           │  ← 2 IMEIs
+└───────────────────────────────────────────┘
+
+Total: 5 produtos, 22 IMEIs
+```
+
+### Texto bruto na DESCRIPTION (como vem do PDF)
+
+```
+08 BLACK:
+359954314115887
+352404326401500
+355616950757660
+352306399178479
+359954314761045
+350340255918027
+354563837571768
+357189983013632
+07 ULTRAMARINE:
+353685838103613
+356166895648011
+357189989303359
+359206282759216
+356140778642979
+354563832891732
+351935561858608
+03 TEAL:
+351582370778211
+351582370720676
+351935561150220
+02 STARLIGHT:
+353685838211325
+353685837780296
+02 PINK:
+357004285459302
+351698476259425
+```
+
+### Regra de separação
+
+| Linha              | Tipo      | Ação                                           |
+|--------------------|-----------|------------------------------------------------|
+| `08 BLACK:`        | Variante  | Inicia produto 1: qty=8, cor=BLACK             |
+| `359954314115887`  | IMEI      | Adiciona ao produto 1 (1/8)                    |
+| ... (8 linhas)     | IMEI      | Produto 1 completa 8 IMEIs                     |
+| `07 ULTRAMARINE:`  | Variante  | Inicia produto 2: qty=7, cor=ULTRAMARINE       |
+| ... (7 linhas)     | IMEI      | Produto 2 completa 7 IMEIs                     |
+| `03 TEAL:`         | Variante  | Inicia produto 3: qty=3, cor=TEAL              |
+| ... (3 linhas)     | IMEI      | Produto 3 completa 3 IMEIs                     |
+| `02 STARLIGHT:`    | Variante  | Inicia produto 4: qty=2, cor=STARLIGHT         |
+| ... (2 linhas)     | IMEI      | Produto 4 completa 2 IMEIs                     |
+| `02 PINK:`         | Variante  | Inicia produto 5: qty=2, cor=PINK              |
+| ... (2 linhas)     | IMEI      | Produto 5 completa 2 IMEIs                     |
+
+### Resultado esperado (5 produtos separados)
+
+| # | Variante   | Qtd | IMEIs                                                                 |
+|---|------------|-----|-----------------------------------------------------------------------|
+| 1 | BLACK      | 8   | 359954314115887, 352404326401500, 355616950757660, 352306399178479, 359954314761045, 350340255918027, 354563837571768, 357189983013632 |
+| 2 | ULTRAMARINE| 7   | 353685838103613, 356166895648011, 357189989303359, 359206282759216, 356140778642979, 354563832891732, 351935561858608 |
+| 3 | TEAL       | 3   | 351582370778211, 351582370720676, 351935561150220                     |
+| 4 | STARLIGHT  | 2   | 353685838211325, 353685837780296                                     |
+| 5 | PINK       | 2   | 357004285459302, 351698476259425                                     |
+
+**Total:** 5 produtos, 22 IMEIs (8+7+3+2+2).
+
+### Padrão regex para variante
+
+```
+^\s*(\d{1,2})\s+([A-Za-z]+):?\s*(\d{15})?\s*$
+```
+
+- Grupo 1: quantidade (08, 07, 03, 02, 02)
+- Grupo 2: cor (BLACK, ULTRAMARINE, TEAL, STARLIGHT, PINK)
+- Grupo 3: IMEI opcional na mesma linha
+
+---
+
+## Casos que ainda falham (backend precisa ajustar)
+
+Estes são **exemplos reais** de produtos que aparecem com IMEIs inconsistentes após o import. O backend está retornando `quantity ≠ imeis.length` para vários itens.
+
+### Exemplos capturados em produção
+
+| Produto (nome retornado) | IMEIs | Qtd | Problema |
+|--------------------------|-------|-----|----------|
+| I15128P2 APPLE - IPHONE 15 128GB P2 02 PINK: BLACK: | 1 | 5 | Nome malformado (02 PINK: + BLACK:); IMEIs insuficientes |
+| I15PRO256P2 APPLE - IPHONE 15 PRO 256GB BLACK: | 1 | 5 | 1 IMEI para 5 unidades – variantes não separadas ou IMEIs perdidos |
+| I16PRO256P2 APPLE - IPHONE 16 PRO 256GB WHITE: | 2 | 5 | 2 IMEIs para 5 unidades |
+| MTP13HN/A APPLE - iPHONE 15 128GB PINK NEW:: | 24 | 5 | 24 IMEIs para 5 – IMEIs de várias variantes agregados em um produto |
+| APPLE - iPHONE 15 128GB: | 12 | 5 | 12 IMEIs para 5 – provável agregação indevida |
+| APPLE - IPHONE 17 PRO 256GB: | 9 | 7 | 9 IMEIs para 7 |
+| MG7M4LL/A APPLE - IPHONE 17 PRO 256GB: | 11 | 2 | 11 IMEIs para 2 – excesso de IMEIs |
+| APPLE - IPHONE 17 PRO 256GB: | 11 | 9 | 11 IMEIs para 9 |
+| A3257 APPLE - iPHONE 17 PRO MAX: | 2 | 13 | 2 IMEIs para 13 – faltam 11 IMEIs |
+| 195950638028 APPLE - IPHONE 17 PRO MAX: | 18 | 8 | 18 IMEIs para 8 – excesso de IMEIs |
+
+### Possíveis causas
+
+1. **Nome malformado** (ex.: "02 PINK: BLACK:" no nome): variantes concatenadas incorretamente no campo `name`.
+2. **IMEIs insuficientes**: variantes separadas, mas IMEIs atribuídos só à primeira; ou regex de variante não detectando todas.
+3. **IMEIs em excesso**: várias variantes agregadas em um único produto, com IMEIs de todas somados.
+4. **Formato diferente do PDF**: layout ou estrutura da DESCRIPTION que a regex atual não cobre (ex.: "PINK NEW::" com dois pontos, SKU com muitos dígitos).
+
+### Ação sugerida no backend
+
+- Revisar `expandProductsByVariants()` e o fluxo de atribuição de IMEIs para esses casos.
+- Incluir logs/tests com esses exemplos reais.
+- Validar regex para formatos alternativos (ex.: "NEW::", variantes em linhas diferentes).
