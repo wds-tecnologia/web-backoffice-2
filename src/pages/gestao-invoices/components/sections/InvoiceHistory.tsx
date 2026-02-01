@@ -393,7 +393,6 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
     });
   };
 
-  const invoicesToShow = invoices.filter((invoice) => !invoice.paid && !invoice.completed);
   const totalQuantidade = selectedInvoice?.products.reduce((sum, product) => sum + product.quantity, 0);
 
   return (
@@ -449,7 +448,7 @@ export function InvoiceHistory({ reloadTrigger }: InvoiceHistoryProps) {
                 </tr>
               ) : (
                 invoices
-                  .filter((invoice) => !invoice.completed && !invoice.paid) // ✅ Mostrar apenas não concluídas E não pagas (apenas pendentes)
+                  .filter((invoice) => !invoice.completed) // ✅ Mostrar todas as invoices não completas (independente de estarem pagas ou não)
                   .slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage) // ✅ Paginação
                   .map((invoice) => {
                     const supplier = suppliers.find((s) => s.id === invoice.supplierId);
