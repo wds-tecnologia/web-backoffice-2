@@ -486,7 +486,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                       />
                     </div>
                     <div className="flex-1 relative">
-                      <div className="text-xs text-gray-500 mb-1">Fornecedor vinculado</div>
+                      <div className="text-xs text-gray-500 mb-1">Fornecedor vinculado (clique para editar)</div>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -494,13 +494,14 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                           setPendingSupplierId(editedData.invoiceData.supplierId || "");
                           setShowSupplierLinkPopup(true);
                         }}
-                        className="w-full text-left text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-xl px-3 py-2 flex items-center gap-2 hover:bg-green-100 transition-colors"
+                        className="w-full text-left text-sm font-medium text-green-700 bg-green-50 border-2 border-green-300 rounded-xl px-3 py-2 flex items-center gap-2 hover:bg-green-100 hover:border-green-400 transition-colors cursor-pointer shadow-sm"
+                        title="Clique para editar o vínculo do fornecedor"
                       >
-                        <Check size={16} className="text-green-600" />
+                        <Check size={16} className="text-green-600 flex-shrink-0" />
                         <span className="flex-1">
                           {suppliers.find((s) => s.id === editedData.invoiceData.supplierId)?.name || "Fornecedor identificado automaticamente"}
                         </span>
-                        <Link2 size={14} className="text-green-600" />
+                        <Link2 size={16} className="text-green-600 flex-shrink-0" />
                       </button>
                       
                       {/* Popup flutuante para atualizar vínculo do fornecedor */}
