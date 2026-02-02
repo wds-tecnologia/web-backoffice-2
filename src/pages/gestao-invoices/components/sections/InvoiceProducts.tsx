@@ -480,10 +480,8 @@ export function InvoiceProducts({ currentInvoice, setCurrentInvoice, ...props }:
 
       const now = new Date();
       const time = now.toTimeString().split(" ")[0]; // "HH:MM:SS"
-      // ✅ Invoices vindas do PDF: sempre salvar com data de hoje (não a data da nota)
-      const dateStr = (currentInvoice as any)._isNumberFromPdf || (currentInvoice as any)._isDateFromPdf
-        ? now.toLocaleDateString("en-CA")
-        : (currentInvoice.date || now.toLocaleDateString("en-CA"));
+      // ✅ Sempre salvar com data de hoje (caixa do freteiro e transações usam essa data)
+      const dateStr = now.toLocaleDateString("en-CA");
       const dateWithTime = new Date(`${dateStr}T${time}`);
       const dateForApi = Number.isNaN(dateWithTime.getTime()) ? now.toISOString() : dateWithTime.toISOString();
 
