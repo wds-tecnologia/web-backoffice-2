@@ -185,7 +185,8 @@ export function ImeiSearchTab() {
     setShowDropdown(false);
 
     try {
-      const response = await api.get(`/invoice/imeis/search?imei=${encodeURIComponent(trimmedImei)}`);
+      // ✅ CORRETO: Endpoint é /invoice/imei/search (singular), não /invoice/imeis/search (plural)
+      const response = await api.get(`/invoice/imei/search?imei=${encodeURIComponent(trimmedImei)}`);
       setImeiData(response.data);
       setNotFound(false);
     } catch (error: any) {
