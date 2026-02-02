@@ -161,6 +161,19 @@ export function MultiInvoiceReviewModal({
 
   const currentData = editedDataList[activeTabIndex];
 
+  // Números duplicados entre as abas (mesmo que não existam no banco)
+  const duplicateNumberByIndex = (() => {
+    const counts: Record<string, number> = {};
+    editedDataList.forEach((data) => {
+      const num = String(data?.invoiceData?.number ?? "").trim().toLowerCase();
+      if (num) counts[num] = (counts[num] || 0) + 1;
+    });
+    return editedDataList.map((data) => {
+      const num = String(data?.invoiceData?.number ?? "").trim().toLowerCase();
+      return !!num && (counts[num] || 0) > 1;
+    });
+  })();
+
   useEffect(() => {
     if (!isOpen) return;
     Promise.all([
@@ -677,6 +690,26 @@ export function MultiInvoiceReviewModal({
 
   /** Envia TODAS as invoices das abas para a tela principal como drafts */
   const handleSendToScreen = () => {
+    // Validar números duplicados entre as abas
+    const numbers = editedDataList
+      .map((d) => String(d?.invoiceData?.number ?? "").trim().toLowerCase())
+      .filter(Boolean);
+    const uniqueNumbers = new Set(numbers);
+    if (numbers.length > 0 && numbers.length !== uniqueNumbers.size) {
+      const duplicados = numbers.filter((n, i) => numbers.indexOf(n) !== i);
+      Swal.fire({
+        icon: "error",
+        title: "Números duplicados",
+        text: `Duas ou mais abas têm o mesmo número de invoice. Corrija antes de enviar. Números duplicados: ${Array.from(new Set(duplicados)).join(", ")}`,
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
     // Validar se todas as invoices têm fornecedor vinculado
     const invoicesWithoutSupplier = editedDataList.filter((data) => {
       const finalSupplierId = data.invoiceData?.supplierId ?? defaultInvoice.supplierId;
@@ -815,11 +848,13 @@ export function MultiInvoiceReviewModal({
           </button>
         </div>
 
-        {/* Tabs (estilo Excel) — cabeçalho fica vermelho se número já existe no banco */}
+        {/* Tabs — vermelho se número existe no banco OU se duplicado entre abas */}
         <div className="border-b bg-gray-50 px-4 pt-2 flex flex-wrap gap-1">
           {editedDataList.map((data, index) => {
             const isSaved = savedIndices.has(index);
-            const numberExists = numberExistsByIndex[index] === true;
+            const numberExistsInDb = numberExistsByIndex[index] === true;
+            const isDuplicateBetweenTabs = duplicateNumberByIndex[index];
+            const hasNumberError = numberExistsInDb || isDuplicateBetweenTabs;
             const num = data?.invoiceData?.number ?? `#${index + 1}`;
             return (
               <button
@@ -829,7 +864,7 @@ export function MultiInvoiceReviewModal({
                   setActiveTabIndex(index);
                 }}
                 className={`px-4 py-2 rounded-t-lg border-b-2 font-medium transition-colors flex items-center gap-1.5 ${
-                  numberExists
+                  hasNumberError
                     ? "border-red-500 bg-red-50 text-red-700 hover:bg-red-100"
                     : activeTabIndex === index
                     ? "border-blue-600 bg-white text-blue-700 -mb-px"
@@ -838,8 +873,8 @@ export function MultiInvoiceReviewModal({
                     : "border-transparent bg-white text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                {numberExists && <AlertTriangle size={14} className="flex-shrink-0" />}
-                {isSaved && !numberExists && <Check size={14} className="inline mr-0" />}
+                {hasNumberError && <AlertTriangle size={14} className="flex-shrink-0" />}
+                {isSaved && !hasNumberError && <Check size={14} className="inline mr-0" />}
                 Invoice {num}
               </button>
             );
@@ -856,12 +891,15 @@ export function MultiInvoiceReviewModal({
                   <div>
                     <label
                       className={`block text-sm font-medium mb-1 ${
-                        numberExistsInDb ? "text-red-700" : "text-gray-700"
+                        numberExistsInDb || duplicateNumberByIndex[activeTabIndex]
+                          ? "text-red-700"
+                          : "text-gray-700"
                       }`}
                     >
                       Número
                       {numberExistsInDb && " — Já existe no banco"}
-                      {numberCheckLoading && !numberExistsInDb && " (verificando...)"}
+                      {duplicateNumberByIndex[activeTabIndex] && !numberExistsInDb && " — Duplicado entre abas"}
+                      {numberCheckLoading && !numberExistsInDb && !duplicateNumberByIndex[activeTabIndex] && " (verificando...)"}
                     </label>
                     <input
                       type="text"
@@ -873,7 +911,7 @@ export function MultiInvoiceReviewModal({
                         })
                       }
                       className={`w-full px-3 py-2 border rounded-md ${
-                        numberExistsInDb
+                        numberExistsInDb || duplicateNumberByIndex[activeTabIndex]
                           ? "border-red-500 bg-red-50 text-red-900 focus:ring-red-500 focus:border-red-500"
                           : "border-gray-300"
                       }`}
