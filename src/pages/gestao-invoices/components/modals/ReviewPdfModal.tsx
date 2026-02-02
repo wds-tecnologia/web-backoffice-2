@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, Link2, Eye, Building2, FileText } from "lucide-react";
+import { X, LayoutGrid, AlertTriangle, Package, Check, Link2, Eye, Building2, FileText } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
@@ -870,8 +870,8 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
             onClick={handleConfirm}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
           >
-            <Save size={18} />
-            Confirmar e Criar Invoice
+            <LayoutGrid size={18} />
+            Enviar para Tela Principal
           </button>
         </div>
       </div>

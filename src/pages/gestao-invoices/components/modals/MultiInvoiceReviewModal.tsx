@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Save, AlertTriangle, Package, Check, Link2, LayoutGrid, Eye, Building2, FileText } from "lucide-react";
+import { X, AlertTriangle, Package, Check, Link2, LayoutGrid, Eye, Building2, FileText } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -160,7 +160,6 @@ export function MultiInvoiceReviewModal({
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
 
   const currentData = editedDataList[activeTabIndex];
-  const allSaved = pdfDataList.length > 0 && savedIndices.size === pdfDataList.length;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -676,9 +675,35 @@ export function MultiInvoiceReviewModal({
     }, "confirmAndCreateAll");
   };
 
+  /** Envia TODAS as invoices das abas para a tela principal como drafts */
   const handleSendToScreen = () => {
+    // Validar se todas as invoices têm fornecedor vinculado
+    const invoicesWithoutSupplier = editedDataList.filter((data) => {
+      const finalSupplierId = data.invoiceData?.supplierId ?? defaultInvoice.supplierId;
+      return !finalSupplierId || finalSupplierId.trim() === "";
+    });
+
+    if (invoicesWithoutSupplier.length > 0) {
+      Swal.fire({
+        icon: "error",
+        title: "Fornecedor não vinculado",
+        text: `Vincule um fornecedor em todas as abas antes de enviar. ${invoicesWithoutSupplier.length} invoice(s) ainda sem fornecedor.`,
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
     const invoices = pdfDataListToInvoices(editedDataList, defaultInvoice);
     onSendToScreen?.(invoices);
+    setOpenNotification({
+      type: "success",
+      title: "Enviado!",
+      notification: `${invoices.length} invoice(s) enviada(s) para a tela principal. Complete os dados e salve quando estiver pronto.`,
+    });
     onClose();
   };
 
@@ -779,11 +804,11 @@ export function MultiInvoiceReviewModal({
           <div>
             <h2 className="text-2xl font-bold text-gray-900">Revisar Dados Extraídos</h2>
             <p className="text-sm text-gray-600 mt-1">
-              Cada aba é uma invoice. Revise, salve uma por uma. Só pode fechar quando todas estiverem salvas.
+              Cada aba é uma invoice. Revise e envie todas para a tela principal.
             </p>
           </div>
           <button
-            onClick={() => allSaved && handleClose()}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X size={24} />
@@ -1268,7 +1293,7 @@ export function MultiInvoiceReviewModal({
           )}
         </div>
 
-        {/* Footer - Simplificado: apenas 2 botões */}
+        {/* Footer - apenas Cancelar e Enviar para Tela Principal */}
         <div className="flex justify-end items-center gap-3 p-6 border-t bg-gray-50">
           <button
             type="button"
@@ -1279,11 +1304,13 @@ export function MultiInvoiceReviewModal({
           </button>
           <button
             type="button"
-            onClick={handleConfirmAndCreateAll}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            onClick={handleSendToScreen}
+            disabled={!onSendToScreen}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Envia todas as invoices das abas para a tela principal"
           >
-            <Save size={18} />
-            Confirmar e Criar Invoice
+            <LayoutGrid size={18} />
+            Enviar para Tela Principal
           </button>
         </div>
       </div>
