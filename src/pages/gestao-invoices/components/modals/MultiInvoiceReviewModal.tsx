@@ -35,52 +35,8 @@ function pdfDataListToInvoices(
         ? "0"
         : String(defaultInvoice.taxaSpEs).trim();
     
-    // Converter data para o formato correto (YYYY-MM-DD)
-    let formattedDate = data.invoiceData?.date;
-    let dateFromPdf = false;
-    
-    // Debug: verificar o que o backend retornou
-    console.log(`[Import PDF] Invoice ${data.invoiceData?.number} - Data do backend:`, data.invoiceData?.date);
-    
-    if (formattedDate && formattedDate.trim() !== "") {
-      dateFromPdf = true;
-      // Se a data estiver em formato DD/MM/YYYY ou MM/DD/YYYY, converter para YYYY-MM-DD
-      if (formattedDate.includes('/')) {
-        const parts = formattedDate.split('/');
-        if (parts[2]?.length === 4) {
-          if (parseInt(parts[0]) > 12) {
-            // É DD/MM/YYYY
-            formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-          } else if (parseInt(parts[1]) > 12) {
-            // É MM/DD/YYYY
-            formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-          } else {
-            // Assumir MM/DD/YYYY (formato americano)
-            formattedDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-          }
-        }
-      } else if (formattedDate.includes('-')) {
-        const parts = formattedDate.split('-');
-        if (parts[0]?.length !== 4 && parts[2]?.length === 4) {
-          // DD-MM-YYYY, converter
-          formattedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-        }
-      }
-      
-      // Validar se a data é válida
-      const testDate = new Date(formattedDate);
-      if (isNaN(testDate.getTime())) {
-        console.warn(`[Import PDF] Data inválida após conversão: ${formattedDate}, usando data atual`);
-        formattedDate = new Date().toLocaleDateString("en-CA");
-        dateFromPdf = false;
-      } else {
-        console.log(`[Import PDF] Data convertida com sucesso: ${formattedDate}`);
-      }
-    } else {
-      console.warn(`[Import PDF] Backend não retornou data para invoice ${data.invoiceData?.number}, usando data atual`);
-      formattedDate = new Date().toLocaleDateString("en-CA");
-      dateFromPdf = false;
-    }
+    // ✅ Sempre usar data de hoje ao enviar para a tela (não a data da nota)
+    const formattedDate = new Date().toLocaleDateString("en-CA");
     
     const supplierFromPdf = data.invoiceData?.supplierId;
     // Quando vem do modal de importação em massa, sempre bloquear os 3 campos (número, data, fornecedor)
@@ -106,7 +62,7 @@ function pdfDataListToInvoices(
       paidDollarRate: null,
       completed: false,
       completedDate: null,
-      _isDateFromPdf: dateFromPdf, // true quando data veio do PDF
+      _isDateFromPdf: false, // Sempre data de hoje ao importar PDF
       _isNumberFromPdf: hasPdfNumber, // true quando número veio do PDF (sempre vem quando é importação em massa)
       _isSupplierFromPdf: !!supplierFromPdf || hasPdfSupplierName, // Bloquear se tem supplierId OU se tem pdfSupplierName (veio do PDF)
     };
