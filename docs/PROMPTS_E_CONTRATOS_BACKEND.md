@@ -11,6 +11,7 @@
 | **Import PDF** | `docs/CONTRATO_FRONT_IMPORT_PDF.md` | O que o front deve fazer com a resposta do import; checklist. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF.md` | Contrato completo do endpoint `POST /invoice/import-from-pdf`; resposta 200. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md` | Variantes, cores, IMEIs; exemplos Print 2 vs Print 3. |
+| | `docs/PROMPT_BACKEND_IMPORT_PDF_NOME_COR.md` | Corrigir "COR NÃO IDENTIFICADA" e IMEI no nome – **✅ implementado** (variant-expander, REGRA 3). |
 | **Histórico de recebimentos** | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO.md` | Regras de histórico de recebimentos. |
 | | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO_COMPLETO.md` | Versão completa. |
 | | `PROMPT_BACKEND_DEDUPLICACAO_HISTORICO_RECEBIMENTO.md` | Deduplicação. |
@@ -31,7 +32,8 @@
 1. Abra **`docs/CONTRATO_FRONT_IMPORT_PDF.md`** – contém o checklist do front.
 2. Para detalhes do endpoint e da resposta: **`docs/PROMPT_BACKEND_IMPORT_PDF.md`**.
 3. Para variantes, cores, IMEIs (Print 2 vs Print 3): **`docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md`**.
-4. Ao implementar ou ajustar o fluxo, siga o contrato e o checklist.
+4. Para bugs de nome (cor não identificada, IMEI no nome): **`docs/PROMPT_BACKEND_IMPORT_PDF_NOME_COR.md`**.
+5. Ao implementar ou ajustar o fluxo, siga o contrato e o checklist.
 
 ### Alinhamento com o backend
 
