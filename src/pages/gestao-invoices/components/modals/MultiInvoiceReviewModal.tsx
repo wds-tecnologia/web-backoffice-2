@@ -1232,7 +1232,9 @@ export function MultiInvoiceReviewModal({
                                       setPendingLinkProductId("");
                                     }}
                                   />
-                                  <div className="absolute right-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                                  <div className={`absolute right-0 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4 ${
+                                    productIndex >= currentData.products.length - 3 ? "bottom-full mb-2" : "top-full mt-2"
+                                  }`}>
                                     <div className="font-semibold text-blue-900 flex items-center gap-2 mb-3">
                                       <Link2 size={18} />
                                       Vincular Produto
