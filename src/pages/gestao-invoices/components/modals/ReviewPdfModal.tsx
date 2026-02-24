@@ -212,11 +212,11 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       const currentProduct = newProducts[index];
       
       // IMPORTANTE: Manter o preço da invoice (não sobrescrever com o preço do banco)
-      // O preço da invoice é o atual, e deve atualizar o produto no sistema
+      // CRÍTICO (contrato): O nome exibido deve permanecer o da nota; nunca substituir pelo nome do produto vinculado
       newProducts[index] = {
         ...currentProduct,
-        name: productFromDb.name,
-        originalPdfName: originalPdfName, // Guarda o nome original do PDF
+        name: originalPdfName, // Sempre manter o nome da nota (nunca trocar pelo nome do banco)
+        originalPdfName: originalPdfName,
         // Mantém o rate original da invoice (não pega do banco)
         validation: {
           ...currentProduct.validation,
