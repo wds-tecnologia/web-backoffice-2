@@ -13,6 +13,7 @@
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md` | Variantes, cores, IMEIs; exemplos Print 2 vs Print 3. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_NOME_COR.md` | Corrigir "COR NÃO IDENTIFICADA" e IMEI no nome – **✅ implementado** (variant-expander, REGRA 3). |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_APPLE_WATCH.md` | Apple Watch e serials alfanuméricos – **✅ implementado** (product-extractor, isSerialLine). |
+| | `docs/PROMPT_BACKEND_IMPORT_PDF_INVOICE_2305.md` | Invoice #2305: PRO MAX SILVER e ORANGE – **✅ implementado** (variant-expander, product-extractor). |
 | **Histórico de recebimentos** | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO.md` | Regras de histórico de recebimentos. |
 | | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO_COMPLETO.md` | Versão completa. |
 | | `PROMPT_BACKEND_DEDUPLICACAO_HISTORICO_RECEBIMENTO.md` | Deduplicação. |

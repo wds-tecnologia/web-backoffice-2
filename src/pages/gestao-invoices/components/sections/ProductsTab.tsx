@@ -331,27 +331,32 @@ export function ProductsTab() {
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+      {/* Barra de busca – sempre visível no topo */}
+      <div className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+        <label className="block text-sm font-medium text-blue-800 mb-2">Buscar produto por nome ou código</label>
+        <div className="flex items-center gap-3">
+          <Search size={20} className="text-blue-600 flex-shrink-0" />
+          <input
+            type="text"
+            placeholder="Digite nome ou código (ex: AIRPODS, 174)..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="flex-1 min-w-[220px] max-w-lg border border-blue-200 rounded-lg px-4 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-400"
+          />
+          {searchTerm && (
+            <span className="text-sm font-medium text-blue-700 whitespace-nowrap">
+              {products.length} resultado{products.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+      </div>
+
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-blue-700">
           <Boxes className="mr-2 inline" size={18} />
           Cadastro de Produtos
         </h2>
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 min-w-[200px]">
-            <Search size={18} className="text-gray-500 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Buscar por nome ou código..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
-            />
-            {searchTerm && (
-              <span className="text-xs text-gray-500 whitespace-nowrap">
-                {products.length} resultado{products.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
           {selectedProducts.length > 0 && (
             <button
               onClick={handleDeleteMultiple}
