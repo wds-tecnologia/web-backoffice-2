@@ -677,8 +677,9 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                               <span>|</span>
                               <span>Total: {formatCurrency(product.amount)}</span>
                               {product.imeis.length > 0 && (() => {
-                                const isSerial = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
-                                const labelType = isSerial ? "Seriais" : "IMEIs";
+                                const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
+                                const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
+                                const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
                                 const displayImeis = product.imeis.filter((s) => {
                                   const str = String(s);
                                   if (/^\d{15}$/.test(str)) return true;

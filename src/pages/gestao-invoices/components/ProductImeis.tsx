@@ -32,22 +32,28 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
     }
   };
 
+  const isWatch = /WATCH|SMART\s*WATCH/i.test(productName || "");
+  const hasNonImei = imeis.some((i) => !/^\d{15}$/.test(String(i?.imei ?? "")));
+  const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+    const label = labelType === "Seriais" ? "Serial" : "IMEI";
     setOpenNotification({
       type: "success",
       title: "Copiado!",
-      notification: `IMEI ${text} copiado para a área de transferência`,
+      notification: `${label} copiado para a área de transferência`,
     });
   };
 
   const copyAllImeis = () => {
     const allImeis = imeis.map((i) => i.imei).join("\n");
     navigator.clipboard.writeText(allImeis);
+    const label = labelType.toLowerCase();
     setOpenNotification({
       type: "success",
       title: "Copiado!",
-      notification: `${imeis.length} IMEIs copiados para a área de transferência`,
+      notification: `${imeis.length} ${label} copiados para a área de transferência`,
     });
   };
 
@@ -64,10 +70,10 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
         <Smartphone size={14} />
         {imeis.length > 0 ? (
           <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold">
-            {imeis.length} IMEIs
+            {imeis.length} {labelType}
           </span>
         ) : (
-          <span>Ver IMEIs</span>
+          <span>Ver {labelType}</span>
         )}
         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
@@ -75,14 +81,14 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
       {isExpanded && (
         <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3">
           {isLoading ? (
-            <div className="text-sm text-gray-500 text-center py-2">Carregando IMEIs...</div>
+            <div className="text-sm text-gray-500 text-center py-2">Carregando {labelType}...</div>
           ) : imeis.length === 0 ? (
-            <div className="text-sm text-gray-500 text-center py-2">Nenhum IMEI cadastrado para este produto</div>
+            <div className="text-sm text-gray-500 text-center py-2">Nenhum {labelType === "Seriais" ? "serial" : "IMEI"} cadastrado para este produto</div>
           ) : (
             <>
               <div className="flex justify-between items-center mb-2">
                 <div className="text-xs font-semibold text-gray-700">
-                  {productName} ({imeis.length} IMEIs)
+                  {productName} ({imeis.length} {labelType})
                 </div>
                 <button
                   onClick={copyAllImeis}
@@ -102,7 +108,7 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
                     <button
                       onClick={() => copyToClipboard(imei.imei)}
                       className="text-blue-600 hover:text-blue-700 p-1"
-                      title="Copiar IMEI"
+                      title={`Copiar ${labelType === "Seriais" ? "serial" : "IMEI"}`}
                     >
                       <Copy size={12} />
                     </button>
