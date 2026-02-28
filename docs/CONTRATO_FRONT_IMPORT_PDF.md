@@ -127,6 +127,7 @@ Validação de vínculo, uso de `validation.productId`, ordem dos produtos e dem
 | Salvar invoice | Enviar `id` = `validation.productId` ou id do produto selecionado; não enviar item sem `id` válido. |
 | Cores no nome | Backend **nunca** envia produto sem cor: sempre `name` com cor (ex.: "... P2 PINK", "... P2 BLACK") ou " COR NÃO IDENTIFICADA" se não detectar variante. Nota não lista produto sem cor. |
 | IMEIs divergindo | Se `quantity` ≠ `imeis.length`, exibir alerta (como já faz). Backend compromete-se a enviar qty IMEIs por variante (próximas qty linhas após "05 BLACK:"). |
+| **Apple Watch / Smart Watch** | Produtos Watch vêm com `imeis` preenchido com **serials alfanuméricos** (ex.: `SFRXMVT34XY`) em vez de IMEIs de 15 dígitos. **Tratar igual:** exibir, enviar no payload e validar `quantity` vs `imeis.length`. Nenhuma alteração especial no front. |
 | `pdfSupplierName` | Preencher campo "Nome na nota" automaticamente com o nome extraído do PDF. |
 | `supplierAliasId` | Se presente, mostrar vínculo no lado direito e **bloquear edição** quando vier da invoice via modal (modo import). |
 | Vincular fornecedor | Usar `POST /invoice/supplier/alias` para criar/atualizar vínculo entre nome do PDF e fornecedor cadastrado. |
@@ -139,6 +140,7 @@ Validação de vínculo, uso de `validation.productId`, ordem dos produtos e dem
 - **NEW: vs P2/P3:** Produtos com "NEW:" na descrição têm a **cor já no nome** (coluna PRODUCTS); o backend não expande por variantes e devolve um item com `name` já contendo a cor. Produtos com **P2** ou **P3** no nome são expandidos por variantes na descrição (um item por cor, com IMEIs por variante).
 - **Cores:** Cada variante com `name` = modelo + " " + cor (PINK, BLACK, NATURAL, etc.); nome base sem "APPLE" duplicado no final.
 - **IMEIs:** Após "05 BLACK:", as próximas 5 linhas = 5 IMEIs dessa variante; `quantity` deve bater com `imeis.length`.
+- **Apple Watch:** Produtos Watch usam serials alfanuméricos (10–15 chars) no mesmo campo `imeis`; o front trata igual a IMEIs.
 
 ---
 
