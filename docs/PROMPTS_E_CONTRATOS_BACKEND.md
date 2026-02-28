@@ -12,6 +12,7 @@
 | | `docs/PROMPT_BACKEND_IMPORT_PDF.md` | Contrato completo do endpoint `POST /invoice/import-from-pdf`; resposta 200. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md` | Variantes, cores, IMEIs; exemplos Print 2 vs Print 3. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_NOME_COR.md` | Corrigir "COR NÃO IDENTIFICADA" e IMEI no nome – **✅ implementado** (variant-expander, REGRA 3). |
+| | `docs/PROMPT_BACKEND_IMPORT_PDF_APPLE_WATCH.md` | Apple Watch e serials alfanuméricos – **✅ implementado** (product-extractor, isSerialLine). |
 | **Histórico de recebimentos** | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO.md` | Regras de histórico de recebimentos. |
 | | `PROMPT_BACKEND_HISTORICO_RECEBIMENTO_COMPLETO.md` | Versão completa. |
 | | `PROMPT_BACKEND_DEDUPLICACAO_HISTORICO_RECEBIMENTO.md` | Deduplicação. |
@@ -21,6 +22,8 @@
 | **IMEIs** | Em `docs/PROMPT_BACKEND_IMPORT_PDF.md` e `CONTRATO_FRONT_IMPORT_PDF.md` | Salvamento de IMEIs; divergências quantity vs imeis.length. |
 | **Produtos perdidos** | `PROMPT_BACKEND_PRODUTOS_PERDIDOS*.md` | Vários docs de regras de produtos perdidos. |
 | **Product/Supplier Aliases** | `docs/PROMPT_BACKEND_PRODUCT_ALIASES.md` | Aliases de produto. |
+| **Busca de produto** | `docs/PROMPT_BACKEND_PRODUCT_SEARCH.md` | Parâmetro `search` em GET /invoice/product. |
+| | `docs/CONTRATO_FRONT_PRODUCT_SEARCH.md` | O que o front deve fazer; checklist. |
 | | `docs/PROMPT_BACKEND_SUPPLIER_ALIASES.md` | Aliases de fornecedor. |
 
 ---

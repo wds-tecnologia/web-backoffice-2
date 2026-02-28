@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Boxes, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Edit, Trash2, Boxes, Loader2, Search } from "lucide-react";
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { useNotification } from "../../../../hooks/notification";
@@ -22,6 +22,8 @@ export function ProductsTab() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sortBy, setSortBy] = useState<"name" | "code">("name"); // Padrão: ordenação alfabética
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm, setSearchTerm] = useState(""); // Valor com debounce para a API
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const { setOpenNotification } = useNotification();
   const { isLoading: isActionLoading, executeAction } = useActionLoading();
@@ -29,9 +31,12 @@ export function ProductsTab() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Solicitar todos os produtos (limite de 1000 para garantir que todos sejam retornados)
       const response = await api.get<any>("/invoice/product", {
-        params: { limit: 1000 },
+        params: {
+          search: searchTerm.trim() || undefined,
+          limit: 1000,
+          page: 1,
+        },
       });
       // O backend agora retorna { products: [...], totalProducts: ..., page: ..., limit: ..., totalPages: ... }
       const productsData = Array.isArray(response.data) ? response.data : response.data.products || [];
@@ -72,7 +77,20 @@ export function ProductsTab() {
 
   useEffect(() => {
     fetchData();
-  }, [sortBy]);
+  }, [sortBy, searchTerm]);
+
+  // Debounce da busca: 400ms após parar de digitar antes de enviar à API
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const handleEdit = (product: Product) => {
     setCurrentProduct(product);
@@ -83,14 +101,6 @@ export function ProductsTab() {
     setSelectedProducts((prev) =>
       prev.includes(id) ? prev.filter((pId) => pId !== id) : [...prev, id]
     );
-  };
-
-  const handleSelectAll = () => {
-    if (selectedProducts.length === products.length) {
-      setSelectedProducts([]);
-    } else {
-      setSelectedProducts(products.map((p) => p.id));
-    }
   };
 
   const handleDeleteMultiple = async () => {
@@ -311,6 +321,14 @@ export function ProductsTab() {
     };
   }, []);
 
+  const handleSelectAll = () => {
+    if (selectedProducts.length === products.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(products.map((p) => p.id));
+    }
+  };
+
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex justify-between items-center mb-6">
@@ -318,7 +336,22 @@ export function ProductsTab() {
           <Boxes className="mr-2 inline" size={18} />
           Cadastro de Produtos
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 min-w-[200px]">
+            <Search size={18} className="text-gray-500 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Buscar por nome ou código..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-300"
+            />
+            {searchTerm && (
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                {products.length} resultado{products.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
           {selectedProducts.length > 0 && (
             <button
               onClick={handleDeleteMultiple}
@@ -410,7 +443,7 @@ export function ProductsTab() {
               {products.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                    {isLoading ? "Carregando..." : "Nenhum produto cadastrado"}
+                    {isLoading ? "Carregando..." : searchTerm ? "Nenhum produto encontrado para o filtro." : "Nenhum produto cadastrado"}
                   </td>
                 </tr>
               ) : (
