@@ -24,26 +24,13 @@
 
 ---
 
-### Bug B: "256GBSILVER" dentro do array `imeis`
+### Bug B: ~~"256GB SILVER" tratada como serial~~ ✅ **RESOLVIDO**
 
-**O que o backend retorna:**
-```json
-{
-  "imeis": [
-    "358206131417124",
-    "358206134675009",
-    ...
-    "358206133973512",
-    "256GBSILVER"   // ← ERRADO! Não é IMEI
-  ]
-}
-```
+**Problema (antes):** `"256GB SILVER"` era tratada como serial em `extractImeisForNew` (variant-expander) e ocupava o lugar de um IMEI. Resultado: 24 IMEIs válidos + 1 inválido = 25 itens; ao filtrar o inválido, restavam 24.
 
-**Problema:** O array `imeis` tem **26 itens** (25 IMEIs válidos + `"256GBSILVER"`). A linha `"256GB SILVER"` da description está sendo tratada como IMEI.
+**Solução aplicada (backend):** Exclusão `!/\d+(GB|TB)/i.test(serial)` em `extractImeisForNew`, para não incluir linhas como `"256GB SILVER"` como serial.
 
-**Regra:** IMEIs devem ser **exatamente 15 dígitos numéricos**. Qualquer string que não seja `^\d{15}$` **não** deve entrar em `imeis`.
-
-**Ação:** Filtrar o array `imeis` antes de retornar: incluir apenas strings que casem com `^\d{15}$`. Ou ajustar a lógica de coleta para não consumir linhas como "256GB SILVER" como IMEI.
+**Resultado:** 25 IMEIs extraídos corretamente. ✅
 
 ---
 
@@ -84,7 +71,7 @@ SDWLW6J547N
 | Item | Problema | Ação |
 |------|----------|------|
 | PRO MAX SILVER | name = "COR NÃO IDENTIFICADA" | Extrair SILVER da description |
-| PRO MAX SILVER | "256GBSILVER" em imeis | Filtrar: só `^\d{15}$` em imeis |
+| PRO MAX SILVER | ~~"256GB SILVER" em imeis~~ | ✅ Resolvido (exclusão GB/TB em extractImeisForNew) |
 | Apple Watch 40" e 44" | Não extraídos | Garantir reconhecimento do formato Watch |
 
 ---
