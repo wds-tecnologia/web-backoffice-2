@@ -1103,7 +1103,16 @@ export function MultiInvoiceReviewModal({
                                   <span>Valor: {formatCurrency(product.rate)}</span>
                                   <span>|</span>
                                   <span>Total: {formatCurrency(product.amount)}</span>
-                                  {product.imeis.length > 0 && (
+                                  {product.imeis.length > 0 && (() => {
+                                    const isSerial = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
+                                    const labelType = isSerial ? "Seriais" : "IMEIs";
+                                    const displayImeis = product.imeis.filter((s) => {
+                                      const str = String(s);
+                                      if (/^\d{15}$/.test(str)) return true;
+                                      if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
+                                      return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
+                                    });
+                                    return (
                                     <>
                                       <span>|</span>
                                       <div className="relative">
@@ -1116,46 +1125,48 @@ export function MultiInvoiceReviewModal({
                                           className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors cursor-pointer"
                                         >
                                           <Eye size={12} />
-                                          {product.imeis.length} IMEI{product.imeis.length !== 1 ? 's' : ''}
-                                          {product.imeis.length !== product.quantity && (
+                                          {displayImeis.length} {labelType}
+                                          {displayImeis.length !== product.quantity && (
                                             <AlertTriangle size={12} className="text-red-600 ml-1" />
                                           )}
                                         </button>
                                         
-                                        {/* Popup flutuante para IMEIs */}
+                                        {/* Popup flutuante – abre para cima nos últimos 3 itens */}
                                         {imeiPopupIndex === productIndex && (
                                           <>
                                             <div 
                                               className="fixed inset-0 z-40"
                                               onClick={() => setImeiPopupIndex(null)}
                                             />
-                                            <div className="absolute left-0 top-full mt-2 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4">
+                                            <div className={`absolute left-0 z-50 w-80 bg-white border border-blue-200 rounded-lg shadow-xl p-4 ${
+                                              productIndex >= currentData.products.length - 3 ? "bottom-full mb-2" : "top-full mt-2"
+                                            }`}>
                                               <div className="flex items-center justify-between mb-3">
                                                 <div className="font-semibold text-blue-900 flex items-center gap-2">
                                                   <Eye size={18} />
-                                                  IMEIs/Seriais ({product.imeis.length})
+                                                  {labelType} ({displayImeis.length})
                                                 </div>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    navigator.clipboard.writeText(product.imeis.join("\n"));
-                                                  }}
-                                                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
-                                                >
-                                                  Copiar
-                                                </button>
-                                              </div>
-                                              
-                                              {product.imeis.length !== product.quantity && (
-                                                <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
-                                                  <AlertTriangle size={14} />
-                                                  Quantidade diferente: {product.imeis.length} IMEIs para {product.quantity} unidades (esperado: 1 IMEI por unidade)
-                                                </div>
-                                              )}
-                                              
-                                              <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
-                                                <div className="flex flex-wrap gap-2">
-                                                  {product.imeis.map((imei, imeiIdx) => (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(displayImeis.join("\n"));
+                                              }}
+                                              className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                                            >
+                                              Copiar
+                                            </button>
+                                          </div>
+                                          
+                                          {displayImeis.length !== product.quantity && (
+                                            <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
+                                              <AlertTriangle size={14} />
+                                              Quantidade diferente: {displayImeis.length} {labelType.toLowerCase()} para {product.quantity} unidades (esperado: 1 por unidade)
+                                            </div>
+                                          )}
+                                          
+                                          <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
+                                            <div className="flex flex-wrap gap-2">
+                                              {displayImeis.map((imei, imeiIdx) => (
                                                     <span
                                                       key={imeiIdx}
                                                       className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
@@ -1178,7 +1189,8 @@ export function MultiInvoiceReviewModal({
                                         )}
                                       </div>
                                     </>
-                                  )}
+                                    );
+                                  })()}
                                 </div>
                                 {/* Nome do produto vinculado (Auto ou Vinculado) — para conferir/trocar se estiver errado */}
                                 {product.validation.productId && (() => {
