@@ -3,6 +3,7 @@ import { X, LayoutGrid, AlertTriangle, Package, Check, Link2, Eye, Building2, Fi
 import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
+import { mergeValidatedIdentifiers, previewIdentifiersInput } from "../utils/imeiInput";
 
 export interface PdfProduct {
   sku: string;
@@ -59,11 +60,6 @@ interface ReviewPdfModalProps {
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
 const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
-const parseIdentifiersInput = (value: string): string[] =>
-  Array.from(new Set(value.split(/[\s,.;:\n\r\t]+/g).map((item) => item.trim()).filter(Boolean)));
-const isValidImeiOrSerial = (value: string): boolean =>
-  /^\d{15}$/.test(value) || /^[A-Z0-9]{10,15}$/i.test(value);
-const normalizeIdentifier = (value: string): string => (/^\d{15}$/.test(value) ? value : value.toUpperCase());
 
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
@@ -241,15 +237,16 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   };
 
   const applyAfiImeis = (productIndex: number) => {
-    const parsed = parseIdentifiersInput(afiImeiInputByIndex[productIndex] || "");
-    const validParsed = parsed.filter(isValidImeiOrSerial).map(normalizeIdentifier);
-    const invalidCount = parsed.length - validParsed.length;
+    const rawInput = afiImeiInputByIndex[productIndex] || "";
+    const currentImeis = editedData?.products?.[productIndex]?.imeis || [];
+    const preview = previewIdentifiersInput(currentImeis, rawInput);
+    const mergeResult = mergeValidatedIdentifiers(currentImeis, rawInput);
 
-    if (parsed.length > 0 && validParsed.length === 0) {
+    if (preview.totalTokens > 0 && preview.validCount === 0) {
       Swal.fire({
         icon: "warning",
         title: "Nenhum identificador válido",
-        text: "Use IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.",
+        text: "Use IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres (com letra e número).",
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
@@ -262,21 +259,19 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     setEditedData((prev) => {
       if (!prev) return prev;
       const nextProducts = [...prev.products];
-      const currentImeis = nextProducts[productIndex]?.imeis || [];
-      const mergedImeis = Array.from(new Set([...currentImeis, ...validParsed]));
       nextProducts[productIndex] = {
         ...nextProducts[productIndex],
-        imeis: mergedImeis,
+        imeis: mergeResult.merged,
       };
       return { ...prev, products: nextProducts };
     });
     setAfiImeiInputByIndex((prev) => ({ ...prev, [productIndex]: "" }));
 
-    if (invalidCount > 0) {
+    if (mergeResult.invalidCount > 0 || mergeResult.duplicateCount > 0) {
       Swal.fire({
         icon: "info",
         title: "Alguns itens foram ignorados",
-        text: `${invalidCount} item(ns) inválido(s) não foram adicionados.`,
+        text: `${mergeResult.addedCount} adicionado(s), ${mergeResult.duplicateCount} duplicado(s) ignorado(s) e ${mergeResult.invalidCount} inválido(s) ignorado(s).`,
         confirmButtonText: "Ok",
         buttonsStyling: false,
         customClass: {
@@ -750,16 +745,6 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                   <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                                     IMEIs opcionais (AFI)
                                   </span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setImeiPopupIndex(imeiPopupIndex === index ? null : index);
-                                    }}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white rounded-full text-xs font-medium hover:bg-purple-700 transition-colors"
-                                  >
-                                    + IMEIs
-                                  </button>
                                 </>
                               )}
                               {(product.imeis.length > 0 || isAfiInvoice) && (() => {
@@ -773,6 +758,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                   return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
                                 });
                                 const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
+                                const livePreview = previewIdentifiersInput(product.imeis || [], afiImeiInputByIndex[index] || "");
                                 return (
                                 <>
                                   <span>|</span>
@@ -840,6 +826,18 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                               <div className="mt-1 text-[11px] text-gray-500">
                                                 Formato aceito: IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.
                                               </div>
+                                              {livePreview.totalTokens > 0 && (
+                                                <div className="mt-1 text-[11px] text-gray-600">
+                                                  Previa: {livePreview.addedCount} novo(s), {livePreview.duplicateCount} duplicado(s),{" "}
+                                                  {livePreview.invalidCount} invalido(s).
+                                                </div>
+                                              )}
+                                              {livePreview.invalidTokens.length > 0 && (
+                                                <div className="mt-1 text-[11px] text-red-600">
+                                                  Invalidos: {Array.from(new Set(livePreview.invalidTokens)).slice(0, 4).join(", ")}
+                                                  {livePreview.invalidTokens.length > 4 ? "..." : ""}
+                                                </div>
+                                              )}
                                             </div>
                                           )}
 
