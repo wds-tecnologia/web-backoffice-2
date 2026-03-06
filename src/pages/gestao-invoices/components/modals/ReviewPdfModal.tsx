@@ -308,11 +308,9 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       return;
     }
     
-    const isAfiInvoice = AFI_SUPPLIER_REGEX.test(String(editedData.invoiceData?.pdfSupplierName ?? ""));
-    // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
-    // Para AFI, IMEIs/seriais são opcionais e não devem gerar alerta de divergência.
+    // Validar IMEIs: quando houver IMEIs preenchidos, quantidade deve bater com quantity.
+    // Para AFI com imeis vazio, não há alerta (opcional).
     const imeisInvalid = editedData.products.filter((p) => {
-      if (isAfiInvoice) return false;
       if (p.imeis && p.imeis.length > 0) {
         return p.imeis.length !== p.quantity;
       }
@@ -773,7 +771,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                     >
                                       <Eye size={12} />
                                       {popupLabel}
-                                      {!isAfiInvoice && displayImeis.length !== product.quantity && (
+                                      {displayImeis.length > 0 && displayImeis.length !== product.quantity && (
                                         <AlertTriangle size={12} className="text-red-600 ml-1" />
                                       )}
                                     </button>
@@ -841,7 +839,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                             </div>
                                           )}
 
-                                          {!isAfiInvoice && displayImeis.length !== product.quantity && (
+                                          {displayImeis.length > 0 && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
                                               Quantidade diferente: {displayImeis.length} {labelType.toLowerCase()} para {product.quantity} unidades (esperado: 1 por unidade)

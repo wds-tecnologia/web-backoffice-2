@@ -10,6 +10,69 @@ interface ImportPdfModalProps {
   onSuccess: (data: any) => void;
 }
 
+const buildProductKey = (product: any) =>
+  [
+    String(product?.name ?? ""),
+    String(product?.quantity ?? ""),
+    String(product?.rate ?? ""),
+    String(product?.amount ?? ""),
+    Array.isArray(product?.imeis) ? product.imeis.join("|") : "",
+  ].join("::");
+
+const normalizeImportedPdfData = (raw: any) => {
+  if (!raw || typeof raw !== "object") return raw;
+
+  const collected: any[] = [];
+  const collect = (value: any) => {
+    if (Array.isArray(value)) collected.push(...value);
+  };
+
+  collect(raw.products);
+  collect(raw.items);
+  collect(raw.extractedProducts);
+  collect(raw?.result?.products);
+  collect(raw?.data?.products);
+  collect(raw?.payload?.products);
+
+  if (Array.isArray(raw.pages)) {
+    for (const page of raw.pages) {
+      collect(page?.products);
+      collect(page?.items);
+      collect(page?.extractedProducts);
+    }
+  }
+
+  if (Array.isArray(raw.productsByPage)) {
+    for (const pageProducts of raw.productsByPage) {
+      collect(pageProducts);
+    }
+  }
+
+  if (collected.length === 0 && raw.product) {
+    collected.push(raw.product);
+  }
+
+  // Evita duplicados caso o backend já traga em mais de um nó.
+  const seen = new Set<string>();
+  const uniqueProducts = collected.filter((product) => {
+    const key = buildProductKey(product);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (uniqueProducts.length === 0) return raw;
+
+  return {
+    ...raw,
+    products: uniqueProducts,
+    summary: {
+      ...(raw.summary || {}),
+      totalProducts: uniqueProducts.length,
+    },
+  };
+};
+
 export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,7 +156,7 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
           response.data
         );
         
-        results.push(response.data);
+        results.push(normalizeImportedPdfData(response.data));
       } catch (error: any) {
         const msg =
           error.response?.data?.message ||
