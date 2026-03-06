@@ -19,38 +19,36 @@ const buildProductKey = (product: any) =>
     Array.isArray(product?.imeis) ? product.imeis.join("|") : "",
   ].join("::");
 
+const isProductCandidate = (value: any) =>
+  value &&
+  typeof value === "object" &&
+  typeof value.name === "string" &&
+  value.name.trim().length > 0 &&
+  typeof value.quantity === "number";
+
 const normalizeImportedPdfData = (raw: any) => {
   if (!raw || typeof raw !== "object") return raw;
 
   const collected: any[] = [];
-  const collect = (value: any) => {
-    if (Array.isArray(value)) collected.push(...value);
+  const visited = new Set<any>();
+  const walk = (node: any) => {
+    if (!node || typeof node !== "object") return;
+    if (visited.has(node)) return;
+    visited.add(node);
+
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    if (isProductCandidate(node)) {
+      collected.push(node);
+    }
+
+    Object.values(node).forEach(walk);
   };
 
-  collect(raw.products);
-  collect(raw.items);
-  collect(raw.extractedProducts);
-  collect(raw?.result?.products);
-  collect(raw?.data?.products);
-  collect(raw?.payload?.products);
-
-  if (Array.isArray(raw.pages)) {
-    for (const page of raw.pages) {
-      collect(page?.products);
-      collect(page?.items);
-      collect(page?.extractedProducts);
-    }
-  }
-
-  if (Array.isArray(raw.productsByPage)) {
-    for (const pageProducts of raw.productsByPage) {
-      collect(pageProducts);
-    }
-  }
-
-  if (collected.length === 0 && raw.product) {
-    collected.push(raw.product);
-  }
+  walk(raw);
 
   // Evita duplicados caso o backend já traga em mais de um nó.
   const seen = new Set<string>();
@@ -156,7 +154,13 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
           response.data
         );
         
-        results.push(normalizeImportedPdfData(response.data));
+        const normalized = normalizeImportedPdfData(response.data);
+        console.log(
+          `%c📦 [IMPORT PDF] Produtos normalizados para "${file.name}":`,
+          "color: #7c3aed; font-weight: bold;",
+          normalized?.products?.length ?? 0
+        );
+        results.push(normalized);
       } catch (error: any) {
         const msg =
           error.response?.data?.message ||
