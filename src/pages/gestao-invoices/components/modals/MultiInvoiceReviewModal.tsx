@@ -12,6 +12,9 @@ type ProductFromDb = { id: string; name: string; code?: string; priceweightAvera
 const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
 const parseIdentifiersInput = (value: string): string[] =>
   Array.from(new Set(value.split(/[\s,.;:\n\r\t]+/g).map((item) => item.trim()).filter(Boolean)));
+const isValidImeiOrSerial = (value: string): boolean =>
+  /^\d{15}$/.test(value) || /^[A-Z0-9]{10,15}$/i.test(value);
+const normalizeIdentifier = (value: string): string => (/^\d{15}$/.test(value) ? value : value.toUpperCase());
 
 /** Converte PdfData[] (editedDataList) para Invoice[] para enviar como drafts à tela */
 function pdfDataListToInvoices(
@@ -347,13 +350,32 @@ export function MultiInvoiceReviewModal({
   const applyAfiImeis = (productIndex: number) => {
     const rowKey = `${activeTabIndex}-${productIndex}`;
     const parsed = parseIdentifiersInput(afiImeiInputByRow[rowKey] || "");
+    const validParsed = parsed.filter(isValidImeiOrSerial).map(normalizeIdentifier);
+    const invalidCount = parsed.length - validParsed.length;
+
+    if (parsed.length > 0 && validParsed.length === 0) {
+      Swal.fire({
+        icon: "warning",
+        title: "Nenhum identificador válido",
+        text: "Use IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.",
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+      return;
+    }
+
     setEditedDataList((prev) => {
       const next = [...prev];
       if (!next[activeTabIndex]) return prev;
       const products = [...next[activeTabIndex].products];
+      const currentImeis = products[productIndex]?.imeis || [];
+      const mergedImeis = Array.from(new Set([...currentImeis, ...validParsed]));
       products[productIndex] = {
         ...products[productIndex],
-        imeis: parsed,
+        imeis: mergedImeis,
       };
       next[activeTabIndex] = {
         ...next[activeTabIndex],
@@ -362,6 +384,36 @@ export function MultiInvoiceReviewModal({
       return next;
     });
     setAfiImeiInputByRow((prev) => ({ ...prev, [rowKey]: "" }));
+
+    if (invalidCount > 0) {
+      Swal.fire({
+        icon: "info",
+        title: "Alguns itens foram ignorados",
+        text: `${invalidCount} item(ns) inválido(s) não foram adicionados.`,
+        confirmButtonText: "Ok",
+        buttonsStyling: false,
+        customClass: {
+          confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+        },
+      });
+    }
+  };
+
+  const clearAfiImeis = (productIndex: number) => {
+    setEditedDataList((prev) => {
+      const next = [...prev];
+      if (!next[activeTabIndex]) return prev;
+      const products = [...next[activeTabIndex].products];
+      products[productIndex] = {
+        ...products[productIndex],
+        imeis: [],
+      };
+      next[activeTabIndex] = {
+        ...next[activeTabIndex],
+        products,
+      };
+      return next;
+    });
   };
 
   const handleSaveThisInvoice = async () => {
@@ -1227,6 +1279,9 @@ export function MultiInvoiceReviewModal({
                                                 placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
                                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
                                               />
+                                              <div className="mt-1 text-[11px] text-gray-500">
+                                                Formato aceito: IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.
+                                              </div>
                                             </div>
                                           )}
 
@@ -1262,22 +1317,17 @@ export function MultiInvoiceReviewModal({
                                               <div className="flex gap-2">
                                                 <button
                                                   type="button"
-                                                  onClick={() =>
-                                                    setAfiImeiInputByRow((prev) => ({
-                                                      ...prev,
-                                                      [getAfiRowKey(productIndex)]: "",
-                                                    }))
-                                                  }
+                                                  onClick={() => clearAfiImeis(productIndex)}
                                                   className="flex-1 px-2 py-1.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
                                                 >
-                                                  Limpar
+                                                  Limpar lista
                                                 </button>
                                                 <button
                                                   type="button"
                                                   onClick={() => applyAfiImeis(productIndex)}
                                                   className="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
                                                 >
-                                                  Aplicar nesta revisão
+                                                  Somar na lista
                                                 </button>
                                               </div>
                                             </div>
