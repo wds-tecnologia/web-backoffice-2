@@ -24,7 +24,7 @@ const isProductCandidate = (value: any) =>
   typeof value === "object" &&
   typeof value.name === "string" &&
   value.name.trim().length > 0 &&
-  typeof value.quantity === "number";
+  typeof value.quantity === "number";  
 
 const normalizeImportedPdfData = (raw: any) => {
   if (!raw || typeof raw !== "object") return raw;
