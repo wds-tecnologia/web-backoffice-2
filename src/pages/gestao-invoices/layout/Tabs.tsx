@@ -1,6 +1,5 @@
-import { JSX } from "react";
 import { TabType } from "../InvocesManagement";
-import { FileText, Boxes, Building, Truck, DollarSign, ChartBar, Users, Package, ShoppingCart, AlertTriangle, Search } from "lucide-react";
+import { FileText, Boxes, Truck, DollarSign, ChartBar, Users, Package, ShoppingCart, AlertTriangle, Search, Smartphone } from "lucide-react";
 import { usePermissionStore } from "../../../store/permissionsStore";
 
 interface TabsProps {
@@ -49,6 +48,12 @@ const allTabs = [
     id: "imei-search",
     icon: <Search className="mr-2" size={16} />,
     label: "Buscar IMEI",
+    permissionKey: null, // Visível para todos
+  },
+  {
+    id: "afi-imei",
+    icon: <Smartphone className="mr-2" size={16} />,
+    label: "IMEI AFI",
     permissionKey: null, // Visível para todos
   },
 ];

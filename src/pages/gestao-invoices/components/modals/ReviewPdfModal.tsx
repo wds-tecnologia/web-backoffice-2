@@ -58,6 +58,7 @@ interface ReviewPdfModalProps {
 }
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
+const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
 
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
@@ -142,6 +143,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   }, [editedData?.invoiceData?.number]);
 
   if (!isOpen || !pdfData || !editedData) return null;
+  const isAfiInvoice = AFI_SUPPLIER_REGEX.test(String(editedData.invoiceData?.pdfSupplierName ?? ""));
 
   // Salvar alias no backend para reconhecimento automático futuro
   const saveProductAlias = async (pdfProductName: string, productId: string) => {
@@ -247,9 +249,11 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       return;
     }
     
+    const isAfiInvoice = AFI_SUPPLIER_REGEX.test(String(editedData.invoiceData?.pdfSupplierName ?? ""));
     // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
-    // MUDANÇA: Apenas avisar, mas permitir continuar
+    // Para AFI, IMEIs/seriais são opcionais e não devem gerar alerta de divergência.
     const imeisInvalid = editedData.products.filter((p) => {
+      if (isAfiInvoice) return false;
       if (p.imeis && p.imeis.length > 0) {
         return p.imeis.length !== p.quantity;
       }
@@ -676,6 +680,14 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                               <span>Valor: {formatCurrency(product.rate)}</span>
                               <span>|</span>
                               <span>Total: {formatCurrency(product.amount)}</span>
+                              {isAfiInvoice && (
+                                <>
+                                  <span>|</span>
+                                  <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                    IMEIs opcionais (AFI)
+                                  </span>
+                                </>
+                              )}
                               {product.imeis.length > 0 && (() => {
                                 const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                 const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
@@ -700,7 +712,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                     >
                                       <Eye size={12} />
                                       {displayImeis.length} {labelType}
-                                      {displayImeis.length !== product.quantity && (
+                                      {!isAfiInvoice && displayImeis.length !== product.quantity && (
                                         <AlertTriangle size={12} className="text-red-600 ml-1" />
                                       )}
                                     </button>
@@ -731,7 +743,15 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                             </button>
                                           </div>
                                           
-                                          {displayImeis.length !== product.quantity && (
+                                          {isAfiInvoice && (
+                                            <div className="mb-3">
+                                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                                IMEIs opcionais (AFI)
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {!isAfiInvoice && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
                                               Quantidade diferente: {displayImeis.length} {labelType.toLowerCase()} para {product.quantity} unidades (esperado: 1 por unidade)
