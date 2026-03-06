@@ -10,6 +10,8 @@ import type { Invoice } from "../types/invoice";
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
 const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
+const parseIdentifiersInput = (value: string): string[] =>
+  Array.from(new Set(value.split(/[\s,.;:\n\r\t]+/g).map((item) => item.trim()).filter(Boolean)));
 
 /** Converte PdfData[] (editedDataList) para Invoice[] para enviar como drafts à tela */
 function pdfDataListToInvoices(
@@ -115,9 +117,11 @@ export function MultiInvoiceReviewModal({
   const [showRawDataModal, setShowRawDataModal] = useState(false);
   const [showSupplierLinkPopup, setShowSupplierLinkPopup] = useState(false);
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
+  const [afiImeiInputByRow, setAfiImeiInputByRow] = useState<Record<string, string>>({});
 
   const currentData = editedDataList[activeTabIndex];
   const isAfiCurrentInvoice = AFI_SUPPLIER_REGEX.test(String(currentData?.invoiceData?.pdfSupplierName ?? ""));
+  const getAfiRowKey = (productIndex: number) => `${activeTabIndex}-${productIndex}`;
 
   // Números duplicados entre as abas (mesmo que não existam no banco)
   const duplicateNumberByIndex = (() => {
@@ -338,6 +342,26 @@ export function MultiInvoiceReviewModal({
     
     // Salvar alias para reconhecimento automático nas próximas importações
     await saveProductAlias(originalPdfName, productId);
+  };
+
+  const applyAfiImeis = (productIndex: number) => {
+    const rowKey = `${activeTabIndex}-${productIndex}`;
+    const parsed = parseIdentifiersInput(afiImeiInputByRow[rowKey] || "");
+    setEditedDataList((prev) => {
+      const next = [...prev];
+      if (!next[activeTabIndex]) return prev;
+      const products = [...next[activeTabIndex].products];
+      products[productIndex] = {
+        ...products[productIndex],
+        imeis: parsed,
+      };
+      next[activeTabIndex] = {
+        ...next[activeTabIndex],
+        products,
+      };
+      return next;
+    });
+    setAfiImeiInputByRow((prev) => ({ ...prev, [rowKey]: "" }));
   };
 
   const handleSaveThisInvoice = async () => {
@@ -1113,9 +1137,19 @@ export function MultiInvoiceReviewModal({
                                       <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                                         IMEIs opcionais (AFI)
                                       </span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setImeiPopupIndex(imeiPopupIndex === productIndex ? null : productIndex);
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white rounded-full text-xs font-medium hover:bg-purple-700 transition-colors"
+                                      >
+                                        + IMEIs
+                                      </button>
                                     </>
                                   )}
-                                  {product.imeis.length > 0 && (() => {
+                                  {(product.imeis.length > 0 || isAfiCurrentInvoice) && (() => {
                                     const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                     const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
                                     const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
@@ -1125,6 +1159,7 @@ export function MultiInvoiceReviewModal({
                                       if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
                                       return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
                                     });
+                                    const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
                                     return (
                                     <>
                                       <span>|</span>
@@ -1138,7 +1173,7 @@ export function MultiInvoiceReviewModal({
                                           className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors cursor-pointer"
                                         >
                                           <Eye size={12} />
-                                          {displayImeis.length} {labelType}
+                                          {popupLabel}
                                           {!isAfiCurrentInvoice && displayImeis.length !== product.quantity && (
                                             <AlertTriangle size={12} className="text-red-600 ml-1" />
                                           )}
@@ -1178,6 +1213,30 @@ export function MultiInvoiceReviewModal({
                                             </div>
                                           )}
 
+                                          {isAfiCurrentInvoice && (
+                                            <div className="mb-3 space-y-2">
+                                              <textarea
+                                                rows={3}
+                                                value={afiImeiInputByRow[getAfiRowKey(productIndex)] || ""}
+                                                onChange={(e) =>
+                                                  setAfiImeiInputByRow((prev) => ({
+                                                    ...prev,
+                                                    [getAfiRowKey(productIndex)]: e.target.value,
+                                                  }))
+                                                }
+                                                placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
+                                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => applyAfiImeis(productIndex)}
+                                                className="w-full px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                                              >
+                                                Salvar IMEIs/Seriais deste produto
+                                              </button>
+                                            </div>
+                                          )}
+
                                           {!isAfiCurrentInvoice && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
@@ -1187,14 +1246,18 @@ export function MultiInvoiceReviewModal({
                                           
                                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
                                             <div className="flex flex-wrap gap-2">
-                                              {displayImeis.map((imei, imeiIdx) => (
-                                                    <span
-                                                      key={imeiIdx}
-                                                      className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                                    >
-                                                      {imei}
-                                                    </span>
-                                                  ))}
+                                              {displayImeis.length === 0 ? (
+                                                <span className="text-xs text-gray-500">Nenhum IMEI/serial informado.</span>
+                                              ) : (
+                                                displayImeis.map((imei, imeiIdx) => (
+                                                  <span
+                                                    key={imeiIdx}
+                                                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                                  >
+                                                    {imei}
+                                                  </span>
+                                                ))
+                                              )}
                                                 </div>
                                               </div>
                                               

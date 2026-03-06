@@ -59,6 +59,8 @@ interface ReviewPdfModalProps {
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
 const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
+const parseIdentifiersInput = (value: string): string[] =>
+  Array.from(new Set(value.split(/[\s,.;:\n\r\t]+/g).map((item) => item.trim()).filter(Boolean)));
 
 export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPdfModalProps) {
   const [editedData, setEditedData] = useState<PdfData | null>(pdfData);
@@ -73,6 +75,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   const [showRawDataModal, setShowRawDataModal] = useState(false);
   const [showSupplierLinkPopup, setShowSupplierLinkPopup] = useState(false);
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
+  const [afiImeiInputByIndex, setAfiImeiInputByIndex] = useState<Record<number, string>>({});
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
@@ -232,6 +235,20 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     
     // Salvar alias para reconhecimento automático nas próximas importações
     await saveProductAlias(originalPdfName, productId);
+  };
+
+  const applyAfiImeis = (productIndex: number) => {
+    const parsed = parseIdentifiersInput(afiImeiInputByIndex[productIndex] || "");
+    setEditedData((prev) => {
+      if (!prev) return prev;
+      const nextProducts = [...prev.products];
+      nextProducts[productIndex] = {
+        ...nextProducts[productIndex],
+        imeis: parsed,
+      };
+      return { ...prev, products: nextProducts };
+    });
+    setAfiImeiInputByIndex((prev) => ({ ...prev, [productIndex]: "" }));
   };
 
   const handleConfirm = async () => {
@@ -686,9 +703,19 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                   <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
                                     IMEIs opcionais (AFI)
                                   </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setImeiPopupIndex(imeiPopupIndex === index ? null : index);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-600 text-white rounded-full text-xs font-medium hover:bg-purple-700 transition-colors"
+                                  >
+                                    + IMEIs
+                                  </button>
                                 </>
                               )}
-                              {product.imeis.length > 0 && (() => {
+                              {(product.imeis.length > 0 || isAfiInvoice) && (() => {
                                 const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                 const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
                                 const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
@@ -698,6 +725,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                   if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
                                   return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
                                 });
+                                const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
                                 return (
                                 <>
                                   <span>|</span>
@@ -711,7 +739,7 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                       className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium hover:bg-blue-200 transition-colors cursor-pointer"
                                     >
                                       <Eye size={12} />
-                                      {displayImeis.length} {labelType}
+                                      {popupLabel}
                                       {!isAfiInvoice && displayImeis.length !== product.quantity && (
                                         <AlertTriangle size={12} className="text-red-600 ml-1" />
                                       )}
@@ -751,6 +779,27 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                             </div>
                                           )}
 
+                                          {isAfiInvoice && (
+                                            <div className="mb-3 space-y-2">
+                                              <textarea
+                                                rows={3}
+                                                value={afiImeiInputByIndex[index] || ""}
+                                                onChange={(e) =>
+                                                  setAfiImeiInputByIndex((prev) => ({ ...prev, [index]: e.target.value }))
+                                                }
+                                                placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
+                                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => applyAfiImeis(index)}
+                                                className="w-full px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                                              >
+                                                Salvar IMEIs/Seriais deste produto
+                                              </button>
+                                            </div>
+                                          )}
+
                                           {!isAfiInvoice && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
@@ -760,14 +809,18 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                           
                                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
                                             <div className="flex flex-wrap gap-2">
-                                              {displayImeis.map((imei, imeiIndex) => (
-                                                <span
-                                                  key={imeiIndex}
-                                                  className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                                >
-                                                  {imei}
-                                                </span>
-                                              ))}
+                                              {displayImeis.length === 0 ? (
+                                                <span className="text-xs text-gray-500">Nenhum IMEI/serial informado.</span>
+                                              ) : (
+                                                displayImeis.map((imei, imeiIndex) => (
+                                                  <span
+                                                    key={imeiIndex}
+                                                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
+                                                  >
+                                                    {imei}
+                                                  </span>
+                                                ))
+                                              )}
                                             </div>
                                           </div>
                                           
