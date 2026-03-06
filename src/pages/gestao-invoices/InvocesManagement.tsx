@@ -13,6 +13,7 @@ import CaixasTabBrl from "./components/sections/CaixasBrl";
 import { ShoppingListsTab } from "./components/sections/ShoppingListsTab";
 import { LostProductsTab } from "./components/sections/LostProductsTab";
 import { ImeiSearchTab } from "./components/sections/ImeiSearchTab";
+import { AfiWirelessImeiTab } from "./components/sections/AfiWirelessImeiTab";
 import { usePermissionStore } from "../../store/permissionsStore";
 import { api } from "../../services/api";
 import { ActionLoadingProvider } from "./context/ActionLoadingContext";
@@ -31,6 +32,7 @@ export type TabType =
   | "shopping-lists"
   | "lost-products"
   | "imei-search"
+  | "afi-imei"
   | "";
 
 export const permissionTabMap: Record<string, TabType> = {
@@ -205,6 +207,7 @@ export default function InvocesManagement() {
               {activeTab === "shopping-lists" && <ShoppingListsTab />}
               {activeTab === "lost-products" && canShowTab("RELATORIOS") && <LostProductsTab />}
               {activeTab === "imei-search" && <ImeiSearchTab />}
+              {activeTab === "afi-imei" && <AfiWirelessImeiTab />}
             </div>
           </div>
         </div>

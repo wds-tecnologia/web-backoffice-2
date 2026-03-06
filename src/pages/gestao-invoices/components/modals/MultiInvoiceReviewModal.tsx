@@ -9,6 +9,7 @@ import type { PdfData, PdfProduct } from "./ReviewPdfModal";
 import type { Invoice } from "../types/invoice";
 
 type ProductFromDb = { id: string; name: string; code?: string; priceweightAverage?: number };
+const AFI_SUPPLIER_REGEX = /AFI\s+WIRELESS\s+INC/i;
 
 /** Converte PdfData[] (editedDataList) para Invoice[] para enviar como drafts à tela */
 function pdfDataListToInvoices(
@@ -116,6 +117,7 @@ export function MultiInvoiceReviewModal({
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
 
   const currentData = editedDataList[activeTabIndex];
+  const isAfiCurrentInvoice = AFI_SUPPLIER_REGEX.test(String(currentData?.invoiceData?.pdfSupplierName ?? ""));
 
   // Números duplicados entre as abas (mesmo que não existam no banco)
   const duplicateNumberByIndex = (() => {
@@ -373,9 +375,11 @@ export function MultiInvoiceReviewModal({
 
     // Validação de produtos sem vínculo removida - backend cria produtos automaticamente quando necessário
     
+    const isAfiInvoice = AFI_SUPPLIER_REGEX.test(String(currentData.invoiceData?.pdfSupplierName ?? ""));
     // Validar IMEIs: quantidade de produtos deve ser igual à quantidade de IMEIs
-    // MUDANÇA: Apenas avisar, mas permitir continuar
+    // Para AFI, IMEIs/seriais são opcionais e não devem gerar alerta de divergência.
     const imeisInvalid = currentData.products.filter((p) => {
+      if (isAfiInvoice) return false;
       if (p.imeis && p.imeis.length > 0) {
         return p.imeis.length !== p.quantity;
       }
@@ -1103,6 +1107,14 @@ export function MultiInvoiceReviewModal({
                                   <span>Valor: {formatCurrency(product.rate)}</span>
                                   <span>|</span>
                                   <span>Total: {formatCurrency(product.amount)}</span>
+                                  {isAfiCurrentInvoice && (
+                                    <>
+                                      <span>|</span>
+                                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                        IMEIs opcionais (AFI)
+                                      </span>
+                                    </>
+                                  )}
                                   {product.imeis.length > 0 && (() => {
                                     const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                     const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
@@ -1127,7 +1139,7 @@ export function MultiInvoiceReviewModal({
                                         >
                                           <Eye size={12} />
                                           {displayImeis.length} {labelType}
-                                          {displayImeis.length !== product.quantity && (
+                                          {!isAfiCurrentInvoice && displayImeis.length !== product.quantity && (
                                             <AlertTriangle size={12} className="text-red-600 ml-1" />
                                           )}
                                         </button>
@@ -1158,7 +1170,15 @@ export function MultiInvoiceReviewModal({
                                             </button>
                                           </div>
                                           
-                                          {displayImeis.length !== product.quantity && (
+                                          {isAfiCurrentInvoice && (
+                                            <div className="mb-3">
+                                              <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-medium">
+                                                IMEIs opcionais (AFI)
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {!isAfiCurrentInvoice && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
                                               <AlertTriangle size={14} />
                                               Quantidade diferente: {displayImeis.length} {labelType.toLowerCase()} para {product.quantity} unidades (esperado: 1 por unidade)
