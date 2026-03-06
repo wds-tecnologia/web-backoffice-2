@@ -19,12 +19,52 @@ const buildProductKey = (product: any) =>
     Array.isArray(product?.imeis) ? product.imeis.join("|") : "",
   ].join("::");
 
-const isProductCandidate = (value: any) =>
-  value &&
-  typeof value === "object" &&
-  typeof value.name === "string" &&
-  value.name.trim().length > 0 &&
-  typeof value.quantity === "number";  
+const toNumber = (value: any): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.replace(/[^\d.,-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const normalizeProductCandidate = (value: any) => {
+  if (!value || typeof value !== "object") return null;
+
+  const name = String(value?.name ?? value?.productName ?? value?.title ?? "").trim();
+  const quantity =
+    toNumber(value?.quantity) ??
+    toNumber(value?.qty) ??
+    toNumber(value?.qtd) ??
+    toNumber(value?.qt);
+
+  if (!name || quantity == null || quantity <= 0) return null;
+
+  const rate =
+    toNumber(value?.rate) ??
+    toNumber(value?.value) ??
+    toNumber(value?.unitRate) ??
+    toNumber(value?.unitPrice) ??
+    toNumber(value?.price) ??
+    0;
+
+  const amount =
+    toNumber(value?.amount) ??
+    toNumber(value?.total) ??
+    (rate > 0 ? rate * quantity : 0);
+
+  const imeis = Array.isArray(value?.imeis) ? value.imeis.map((item: any) => String(item).trim()).filter(Boolean) : [];
+
+  return {
+    ...value,
+    name,
+    quantity,
+    rate,
+    amount,
+    imeis,
+  };
+};
 
 const normalizeImportedPdfData = (raw: any) => {
   if (!raw || typeof raw !== "object") return raw;
@@ -41,8 +81,9 @@ const normalizeImportedPdfData = (raw: any) => {
       return;
     }
 
-    if (isProductCandidate(node)) {
-      collected.push(node);
+    const productCandidate = normalizeProductCandidate(node);
+    if (productCandidate) {
+      collected.push(productCandidate);
     }
 
     Object.values(node).forEach(walk);
