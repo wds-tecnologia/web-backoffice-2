@@ -1214,7 +1214,7 @@ export function MultiInvoiceReviewModal({
                                           )}
 
                                           {isAfiCurrentInvoice && (
-                                            <div className="mb-3 space-y-2">
+                                            <div className="mb-3">
                                               <textarea
                                                 rows={3}
                                                 value={afiImeiInputByRow[getAfiRowKey(productIndex)] || ""}
@@ -1227,13 +1227,6 @@ export function MultiInvoiceReviewModal({
                                                 placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
                                                 className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
                                               />
-                                              <button
-                                                type="button"
-                                                onClick={() => applyAfiImeis(productIndex)}
-                                                className="w-full px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
-                                              >
-                                                Salvar IMEIs/Seriais deste produto
-                                              </button>
                                             </div>
                                           )}
 
@@ -1260,6 +1253,35 @@ export function MultiInvoiceReviewModal({
                                               )}
                                                 </div>
                                               </div>
+
+                                          {isAfiCurrentInvoice && (
+                                            <div className="mt-3 space-y-2">
+                                              <div className="text-[11px] text-gray-500">
+                                                Rascunho local: só salva no banco quando você enviar para a tela principal e gerar a invoice.
+                                              </div>
+                                              <div className="flex gap-2">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setAfiImeiInputByRow((prev) => ({
+                                                      ...prev,
+                                                      [getAfiRowKey(productIndex)]: "",
+                                                    }))
+                                                  }
+                                                  className="flex-1 px-2 py-1.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                                                >
+                                                  Limpar
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => applyAfiImeis(productIndex)}
+                                                  className="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                                                >
+                                                  Aplicar nesta revisão
+                                                </button>
+                                              </div>
+                                            </div>
+                                          )}
                                               
                                               <button
                                                 type="button"
