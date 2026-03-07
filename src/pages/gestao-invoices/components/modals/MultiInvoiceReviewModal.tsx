@@ -6,6 +6,7 @@ import { useNotification } from "../../../../hooks/notification";
 import { useActionLoading } from "../../context/ActionLoadingContext";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
 import { mergeValidatedIdentifiers, previewIdentifiersInput } from "../utils/imeiInput";
+import { buildAfiProductAliasVariants } from "../utils/afiAlias";
 import type { PdfData, PdfProduct } from "./ReviewPdfModal";
 import type { Invoice } from "../types/invoice";
 
@@ -340,7 +341,10 @@ export function MultiInvoiceReviewModal({
     setEditedDataAt(activeTabIndex, { ...currentData, products: newProducts });
     
     // Salvar alias para reconhecimento automático nas próximas importações
-    await saveProductAlias(originalPdfName, productId);
+    const aliasNames = isAfiCurrentInvoice
+      ? buildAfiProductAliasVariants(originalPdfName)
+      : [originalPdfName];
+    await Promise.all(aliasNames.map((alias) => saveProductAlias(alias, productId)));
   };
 
   const applyAfiImeis = (productIndex: number) => {

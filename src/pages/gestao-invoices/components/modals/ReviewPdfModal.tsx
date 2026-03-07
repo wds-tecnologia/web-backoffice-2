@@ -4,6 +4,7 @@ import Swal from "sweetalert2";
 import { api } from "../../../../services/api";
 import { ProductSearchSelect } from "../sections/SupplierSearchSelect";
 import { mergeValidatedIdentifiers, previewIdentifiersInput } from "../utils/imeiInput";
+import { buildAfiProductAliasVariants } from "../utils/afiAlias";
 
 export interface PdfProduct {
   sku: string;
@@ -233,7 +234,10 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
     });
     
     // Salvar alias para reconhecimento automático nas próximas importações
-    await saveProductAlias(originalPdfName, productId);
+    const aliasNames = isAfiInvoice
+      ? buildAfiProductAliasVariants(originalPdfName)
+      : [originalPdfName];
+    await Promise.all(aliasNames.map((alias) => saveProductAlias(alias, productId)));
   };
 
   const applyAfiImeis = (productIndex: number) => {
