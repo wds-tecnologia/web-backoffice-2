@@ -11,6 +11,7 @@
 | **Import PDF** | `docs/CONTRATO_FRONT_IMPORT_PDF.md` | O que o front deve fazer com a resposta do import; checklist. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF.md` | Contrato completo do endpoint `POST /invoice/import-from-pdf`; resposta 200. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_VARIANTS.md` | Variantes, cores, IMEIs; exemplos Print 2 vs Print 3. |
+| | `docs/PROMPT_BACKEND_IMPORT_PDF_AFI.md` | Modelo alternativo AFI: 1 produto por pagina, IMEIs distribuidos em varias paginas. |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_NOME_COR.md` | Corrigir "COR NÃO IDENTIFICADA" e IMEI no nome – **✅ implementado** (variant-expander, REGRA 3). |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_APPLE_WATCH.md` | Apple Watch e serials alfanuméricos – **✅ implementado** (product-extractor, isSerialLine). |
 | | `docs/PROMPT_BACKEND_IMPORT_PDF_INVOICE_2305.md` | Invoice #2305: PRO MAX SILVER e ORANGE – **✅ implementado** (variant-expander, product-extractor). |

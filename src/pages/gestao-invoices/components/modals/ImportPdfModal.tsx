@@ -10,6 +10,108 @@ interface ImportPdfModalProps {
   onSuccess: (data: any) => void;
 }
 
+const buildProductKey = (product: any) =>
+  [
+    String(product?.name ?? ""),
+    String(product?.quantity ?? ""),
+    String(product?.rate ?? ""),
+    String(product?.amount ?? ""),
+    Array.isArray(product?.imeis) ? product.imeis.join("|") : "",
+  ].join("::");
+
+const toNumber = (value: any): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.replace(/[^\d.,-]/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const normalizeProductCandidate = (value: any) => {
+  if (!value || typeof value !== "object") return null;
+
+  const name = String(value?.name ?? value?.productName ?? value?.title ?? "").trim();
+  const quantity =
+    toNumber(value?.quantity) ??
+    toNumber(value?.qty) ??
+    toNumber(value?.qtd) ??
+    toNumber(value?.qt);
+
+  if (!name || quantity == null || quantity <= 0) return null;
+
+  const rate =
+    toNumber(value?.rate) ??
+    toNumber(value?.value) ??
+    toNumber(value?.unitRate) ??
+    toNumber(value?.unitPrice) ??
+    toNumber(value?.price) ??
+    0;
+
+  const amount =
+    toNumber(value?.amount) ??
+    toNumber(value?.total) ??
+    (rate > 0 ? rate * quantity : 0);
+
+  const imeis = Array.isArray(value?.imeis) ? value.imeis.map((item: any) => String(item).trim()).filter(Boolean) : [];
+
+  return {
+    ...value,
+    name,
+    quantity,
+    rate,
+    amount,
+    imeis,
+  };
+};
+
+const normalizeImportedPdfData = (raw: any) => {
+  if (!raw || typeof raw !== "object") return raw;
+
+  const collected: any[] = [];
+  const visited = new Set<any>();
+  const walk = (node: any) => {
+    if (!node || typeof node !== "object") return;
+    if (visited.has(node)) return;
+    visited.add(node);
+
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    const productCandidate = normalizeProductCandidate(node);
+    if (productCandidate) {
+      collected.push(productCandidate);
+    }
+
+    Object.values(node).forEach(walk);
+  };
+
+  walk(raw);
+
+  // Evita duplicados caso o backend já traga em mais de um nó.
+  const seen = new Set<string>();
+  const uniqueProducts = collected.filter((product) => {
+    const key = buildProductKey(product);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  if (uniqueProducts.length === 0) return raw;
+
+  return {
+    ...raw,
+    products: uniqueProducts,
+    summary: {
+      ...(raw.summary || {}),
+      totalProducts: uniqueProducts.length,
+    },
+  };
+};
+
 export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,7 +195,13 @@ export function ImportPdfModal({ isOpen, onClose, onSuccess }: ImportPdfModalPro
           response.data
         );
         
-        results.push(response.data);
+        const normalized = normalizeImportedPdfData(response.data);
+        console.log(
+          `%c📦 [IMPORT PDF] Produtos normalizados para "${file.name}":`,
+          "color: #7c3aed; font-weight: bold;",
+          normalized?.products?.length ?? 0
+        );
+        results.push(normalized);
       } catch (error: any) {
         const msg =
           error.response?.data?.message ||
