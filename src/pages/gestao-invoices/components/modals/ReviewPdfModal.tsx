@@ -76,6 +76,8 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
   const [showSupplierLinkPopup, setShowSupplierLinkPopup] = useState(false);
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
   const [afiImeiInputByIndex, setAfiImeiInputByIndex] = useState<Record<number, string>>({});
+  const [editingImeiKey, setEditingImeiKey] = useState<string | null>(null);
+  const [editingImeiValue, setEditingImeiValue] = useState("");
 
   // Sincronizar quando abrir com outro PDF (ex.: próximo da fila em massa)
   useEffect(() => {
@@ -295,6 +297,81 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
       };
       return { ...prev, products: nextProducts };
     });
+  };
+
+  const isValidImeiOrSerial = (value: string) =>
+    /^\d{15}$/.test(value) || /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{10,15}$/i.test(value);
+
+  const normalizeImeiOrSerial = (value: string) =>
+    /^\d{15}$/.test(value) ? value : value.toUpperCase();
+
+  const updateProductImeisAtIndex = (productIndex: number, originalIndex: number, nextValue: string) => {
+    setEditedData((prev) => {
+      if (!prev) return prev;
+      const nextProducts = [...prev.products];
+      const currentImeis = [...(nextProducts[productIndex]?.imeis || [])];
+      currentImeis[originalIndex] = nextValue;
+      nextProducts[productIndex] = { ...nextProducts[productIndex], imeis: currentImeis };
+      return { ...prev, products: nextProducts };
+    });
+  };
+
+  const removeProductImeiAtIndex = (productIndex: number, originalIndex: number) => {
+    setEditedData((prev) => {
+      if (!prev) return prev;
+      const nextProducts = [...prev.products];
+      const currentImeis = [...(nextProducts[productIndex]?.imeis || [])];
+      currentImeis.splice(originalIndex, 1);
+      nextProducts[productIndex] = { ...nextProducts[productIndex], imeis: currentImeis };
+      return { ...prev, products: nextProducts };
+    });
+  };
+
+  const confirmAndRemoveProductImei = async (productIndex: number, originalIndex: number) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Remover IMEI/serial?",
+      text: "Essa ação remove apenas este item da lista atual.",
+      showCancelButton: true,
+      confirmButtonText: "Remover",
+      cancelButtonText: "Cancelar",
+      buttonsStyling: false,
+      customClass: {
+        confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
+        cancelButton: "bg-gray-300 text-gray-700 hover:bg-gray-400 px-4 py-2 rounded font-semibold",
+      },
+    });
+    if (!result.isConfirmed) return;
+    removeProductImeiAtIndex(productIndex, originalIndex);
+  };
+
+  const startImeiEdit = (productIndex: number, originalIndex: number, value: string) => {
+    setEditingImeiKey(`${productIndex}-${originalIndex}`);
+    setEditingImeiValue(value);
+  };
+
+  const saveImeiEdit = async (productIndex: number, originalIndex: number, silent = false) => {
+    const normalized = normalizeImeiOrSerial(editingImeiValue.trim());
+    if (!isValidImeiOrSerial(normalized)) {
+      if (!silent) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Valor inválido",
+          text: "Use IMEI (15 dígitos) ou serial alfanumérico de 10 a 15 caracteres com letra e número.",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+      }
+      setEditingImeiKey(null);
+      setEditingImeiValue("");
+      return;
+    }
+    updateProductImeisAtIndex(productIndex, originalIndex, normalized);
+    setEditingImeiKey(null);
+    setEditingImeiValue("");
   };
 
   const handleConfirm = async () => {
@@ -753,14 +830,17 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                 const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                 const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
                                 const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
-                                const displayImeis = product.imeis.filter((s) => {
-                                  const str = String(s);
-                                  if (/^\d{15}$/.test(str)) return true;
-                                  if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
-                                  return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
-                                });
-                                const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
+                                const displayImeiEntries = product.imeis
+                                  .map((s, originalIndex) => ({ value: String(s), originalIndex }))
+                                  .filter(({ value }) => {
+                                    const str = String(value);
+                                    if (/^\d{15}$/.test(str)) return true;
+                                    if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
+                                    return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
+                                  });
+                                const displayImeis = displayImeiEntries.map((entry) => entry.value);
                                 const livePreview = previewIdentifiersInput(product.imeis || [], afiImeiInputByIndex[index] || "");
+                                const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
                                 return (
                                 <>
                                   <span>|</span>
@@ -850,17 +930,51 @@ export function ReviewPdfModal({ isOpen, onClose, pdfData, onConfirm }: ReviewPd
                                           
                                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
                                             <div className="flex flex-wrap gap-2">
-                                              {displayImeis.length === 0 ? (
+                                              {displayImeiEntries.length === 0 ? (
                                                 <span className="text-xs text-gray-500">Nenhum IMEI/serial informado.</span>
                                               ) : (
-                                                displayImeis.map((imei, imeiIndex) => (
-                                                  <span
-                                                    key={imeiIndex}
-                                                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                                  >
-                                                    {imei}
-                                                  </span>
-                                                ))
+                                                displayImeiEntries.map((entry) => {
+                                                  const chipKey = `${index}-${entry.originalIndex}`;
+                                                  const isEditing = editingImeiKey === chipKey;
+                                                  return (
+                                                    <div
+                                                      key={chipKey}
+                                                      className="relative px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono border border-blue-200"
+                                                      onDoubleClick={() => startImeiEdit(index, entry.originalIndex, entry.value)}
+                                                      title="Duplo clique para editar"
+                                                    >
+                                                      {isEditing ? (
+                                                        <input
+                                                          value={editingImeiValue}
+                                                          autoFocus
+                                                          onChange={(e) => setEditingImeiValue(e.target.value)}
+                                                          onBlur={() => saveImeiEdit(index, entry.originalIndex, true)}
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                              e.preventDefault();
+                                                              saveImeiEdit(index, entry.originalIndex);
+                                                            }
+                                                            if (e.key === "Escape") {
+                                                              setEditingImeiKey(null);
+                                                              setEditingImeiValue("");
+                                                            }
+                                                          }}
+                                                          className="w-24 bg-white border border-blue-300 rounded px-1 text-[11px]"
+                                                        />
+                                                      ) : (
+                                                        <span>{entry.value}</span>
+                                                      )}
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => confirmAndRemoveProductImei(index, entry.originalIndex)}
+                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] leading-4 hover:bg-red-700"
+                                                        title="Remover IMEI/serial"
+                                                      >
+                                                        ×
+                                                      </button>
+                                                    </div>
+                                                  );
+                                                })
                                               )}
                                             </div>
                                           </div>
