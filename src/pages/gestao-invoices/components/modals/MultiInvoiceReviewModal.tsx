@@ -450,9 +450,8 @@ export function MultiInvoiceReviewModal({
 
     // Validação de produtos sem vínculo removida - backend cria produtos automaticamente quando necessário
     
-    const isAfiInvoice = AFI_SUPPLIER_REGEX.test(String(currentData.invoiceData?.pdfSupplierName ?? ""));
     // Validar IMEIs: quando houver IMEIs preenchidos, quantidade deve bater com quantity.
-    // Para AFI com imeis vazio, não há alerta (opcional).
+    // Com imeis vazio, não há alerta (opcional).
     const imeisInvalid = currentData.products.filter((p) => {
       if (p.imeis && p.imeis.length > 0) {
         return p.imeis.length !== p.quantity;
@@ -1189,7 +1188,7 @@ export function MultiInvoiceReviewModal({
                                       </span>
                                     </>
                                   )}
-                                  {(product.imeis.length > 0 || isAfiCurrentInvoice) && (() => {
+                                  {(() => {
                                     const hasNonImei = product.imeis.some((s) => !/^\d{15}$/.test(String(s)));
                                     const isWatch = /WATCH|SMART\s*WATCH/i.test(product.name || "");
                                     const labelType = isWatch || hasNonImei ? "Seriais" : "IMEIs";
@@ -1257,37 +1256,35 @@ export function MultiInvoiceReviewModal({
                                             </div>
                                           )}
 
-                                          {isAfiCurrentInvoice && (
-                                            <div className="mb-3">
-                                              <textarea
-                                                rows={3}
-                                                value={afiImeiInputByRow[getAfiRowKey(productIndex)] || ""}
-                                                onChange={(e) =>
-                                                  setAfiImeiInputByRow((prev) => ({
-                                                    ...prev,
-                                                    [getAfiRowKey(productIndex)]: e.target.value,
-                                                  }))
-                                                }
-                                                placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
-                                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
-                                              />
-                                              <div className="mt-1 text-[11px] text-gray-500">
-                                                Formato aceito: IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.
-                                              </div>
-                                              {livePreview.totalTokens > 0 && (
-                                                <div className="mt-1 text-[11px] text-gray-600">
-                                                  Previa: {livePreview.addedCount} novo(s), {livePreview.duplicateCount} duplicado(s),{" "}
-                                                  {livePreview.invalidCount} invalido(s).
-                                                </div>
-                                              )}
-                                              {livePreview.invalidTokens.length > 0 && (
-                                                <div className="mt-1 text-[11px] text-red-600">
-                                                  Invalidos: {Array.from(new Set(livePreview.invalidTokens)).slice(0, 4).join(", ")}
-                                                  {livePreview.invalidTokens.length > 4 ? "..." : ""}
-                                                </div>
-                                              )}
+                                          <div className="mb-3">
+                                            <textarea
+                                              rows={3}
+                                              value={afiImeiInputByRow[getAfiRowKey(productIndex)] || ""}
+                                              onChange={(e) =>
+                                                setAfiImeiInputByRow((prev) => ({
+                                                  ...prev,
+                                                  [getAfiRowKey(productIndex)]: e.target.value,
+                                                }))
+                                              }
+                                              placeholder="Cole IMEIs/seriais separados por vírgula, ponto, ;, : ou quebra de linha"
+                                              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-purple-400 focus:border-purple-400"
+                                            />
+                                            <div className="mt-1 text-[11px] text-gray-500">
+                                              Formato aceito: IMEI com 15 dígitos ou serial alfanumérico de 10 a 15 caracteres.
                                             </div>
-                                          )}
+                                            {livePreview.totalTokens > 0 && (
+                                              <div className="mt-1 text-[11px] text-gray-600">
+                                                Previa: {livePreview.addedCount} novo(s), {livePreview.duplicateCount} duplicado(s),{" "}
+                                                {livePreview.invalidCount} invalido(s).
+                                              </div>
+                                            )}
+                                            {livePreview.invalidTokens.length > 0 && (
+                                              <div className="mt-1 text-[11px] text-red-600">
+                                                Invalidos: {Array.from(new Set(livePreview.invalidTokens)).slice(0, 4).join(", ")}
+                                                {livePreview.invalidTokens.length > 4 ? "..." : ""}
+                                              </div>
+                                            )}
+                                          </div>
 
                                           {displayImeis.length > 0 && displayImeis.length !== product.quantity && (
                                             <div className="mb-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800 flex items-center gap-2">
@@ -1313,29 +1310,27 @@ export function MultiInvoiceReviewModal({
                                                 </div>
                                               </div>
 
-                                          {isAfiCurrentInvoice && (
-                                            <div className="mt-3 space-y-2">
-                                              <div className="text-[11px] text-gray-500">
-                                                Rascunho local: só salva no banco quando você enviar para a tela principal e gerar a invoice.
-                                              </div>
-                                              <div className="flex gap-2">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => clearAfiImeis(productIndex)}
-                                                  className="flex-1 px-2 py-1.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
-                                                >
-                                                  Limpar lista
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => applyAfiImeis(productIndex)}
-                                                  className="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
-                                                >
-                                                  Somar na lista
-                                                </button>
-                                              </div>
+                                          <div className="mt-3 space-y-2">
+                                            <div className="text-[11px] text-gray-500">
+                                              Rascunho local: só salva no banco quando você enviar para a tela principal e gerar a invoice.
                                             </div>
-                                          )}
+                                            <div className="flex gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => clearAfiImeis(productIndex)}
+                                                className="flex-1 px-2 py-1.5 bg-gray-200 text-gray-700 rounded text-xs hover:bg-gray-300"
+                                              >
+                                                Limpar lista
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => applyAfiImeis(productIndex)}
+                                                className="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
+                                              >
+                                                Somar na lista
+                                              </button>
+                                            </div>
+                                          </div>
                                               
                                               <button
                                                 type="button"

@@ -1,5 +1,5 @@
 import { TabType } from "../InvocesManagement";
-import { FileText, Boxes, Truck, DollarSign, ChartBar, Users, Package, ShoppingCart, AlertTriangle, Search, Smartphone } from "lucide-react";
+import { FileText, Boxes, Truck, DollarSign, ChartBar, Users, Package, ShoppingCart, AlertTriangle, Search } from "lucide-react";
 import { usePermissionStore } from "../../../store/permissionsStore";
 
 interface TabsProps {
@@ -24,7 +24,6 @@ const allTabs = [
     label: "Média Dólar",
     permissionKey: "MEDIA_DOLAR",
   },
-  { id: "relatorios", icon: <ChartBar className="mr-2" size={16} />, label: "Relatórios", permissionKey: "RELATORIOS" },
   { id: "caixas", icon: <Boxes className="mr-2" size={16} />, label: "Caixas", permissionKey: "CAIXAS_PERMITIDOS" },
   {
     id: "caixas-brl",
@@ -50,12 +49,13 @@ const allTabs = [
     label: "Buscar IMEI",
     permissionKey: null, // Visível para todos
   },
-  {
-    id: "afi-imei",
-    icon: <Smartphone className="mr-2" size={16} />,
-    label: "IMEI AFI",
-    permissionKey: null, // Visível para todos
-  },
+  // {
+  //   id: "afi-imei",
+  //   icon: <Smartphone className="mr-2" size={16} />,
+  //   label: "IMEI AFI",
+  //   permissionKey: null, // Visível para todos
+  // },
+  { id: "relatorios", icon: <ChartBar className="mr-2" size={16} />, label: "Relatórios", permissionKey: "RELATORIOS" },
 ];
 
 export function Tabs({ activeTab, setActiveTab }: TabsProps) {

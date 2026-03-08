@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, Copy, Smartphone } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp, Copy, Loader2, Smartphone, Trash2 } from "lucide-react";
 import { api } from "../../../services/api";
 import { useNotification } from "../../../hooks/notification";
 
@@ -9,18 +9,14 @@ interface ProductImeisProps {
 }
 
 export function ProductImeis({ invoiceProductId, productName }: ProductImeisProps) {
-  const [imeis, setImeis] = useState<any[]>([]);
+  const [imeis, setImeis] = useState<{ id?: string; imei: string }[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [draftInput, setDraftInput] = useState("");
   const { setOpenNotification } = useNotification();
 
-  useEffect(() => {
-    if (isExpanded && imeis.length === 0) {
-      fetchImeis();
-    }
-  }, [isExpanded]);
-
-  const fetchImeis = async () => {
+  const fetchImeis = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await api.get(`/invoice/imeis/invoice-product/${invoiceProductId}`);
@@ -30,7 +26,13 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [invoiceProductId]);
+
+  useEffect(() => {
+    if (isExpanded) {
+      fetchImeis();
+    }
+  }, [isExpanded, fetchImeis]);
 
   const isWatch = /WATCH|SMART\s*WATCH/i.test(productName || "");
   const hasNonImei = imeis.some((i) => !/^\d{15}$/.test(String(i?.imei ?? "")));
@@ -57,9 +59,88 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
     });
   };
 
-  if (imeis.length === 0 && !isExpanded) {
-    return null; // Não mostra nada se não há IMEIs e não está expandido
-  }
+  const parseInput = (input: string) => {
+    const rawTokens = input
+      .split(/[,\n;:]+/g)
+      .flatMap((chunk) => chunk.split(/\s+/g))
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const valid: string[] = [];
+    const invalid: string[] = [];
+    const seen = new Set<string>();
+
+    for (const token of rawTokens) {
+      const normalized = token.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+      const isImei = /^\d{15}$/.test(normalized);
+      const isSerial = /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{10,15}$/.test(normalized);
+      if (!normalized || (!isImei && !isSerial)) {
+        invalid.push(token);
+        continue;
+      }
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      valid.push(normalized);
+    }
+
+    return { valid, invalid };
+  };
+
+  const preview = useMemo(() => {
+    const { valid, invalid } = parseInput(draftInput);
+    const existing = new Set(imeis.map((item) => String(item.imei || "").toUpperCase()));
+    const duplicateCount = valid.filter((item) => existing.has(item)).length;
+    const addCount = valid.length - duplicateCount;
+    return { addCount, duplicateCount, invalidCount: invalid.length, invalidSamples: invalid.slice(0, 4) };
+  }, [draftInput, imeis]);
+
+  const updateImeis = async (mode: "merge" | "replace" | "clear") => {
+    if (mode !== "clear") {
+      const { valid } = parseInput(draftInput);
+      if (valid.length === 0) {
+        setOpenNotification({
+          type: "warning",
+          title: "Atenção",
+          notification: "Informe ao menos 1 IMEI/serial válido para continuar.",
+        });
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    try {
+      const payload =
+        mode === "clear"
+          ? { mode, imeis: [] as string[] }
+          : { mode, imeis: parseInput(draftInput).valid };
+      const response = await api.patch(`/invoice/imeis/invoice-product/${invoiceProductId}`, payload);
+      const finalImeis: string[] = response.data?.finalImeis || [];
+      setImeis(finalImeis.map((item, idx) => ({ id: `local-${idx}`, imei: item })));
+      if (mode !== "clear") setDraftInput("");
+
+      const summary = response.data?.summary;
+      const defaultMsg = `${finalImeis.length} ${labelType.toLowerCase()} no produto após atualização.`;
+      setOpenNotification({
+        type: "success",
+        title: "Atualizado",
+        notification: summary
+          ? `${summary.added} adicionados, ${summary.duplicatesIgnored} duplicados ignorados, ${summary.invalidIgnored} inválidos ignorados.`
+          : defaultMsg,
+      });
+    } catch (error: any) {
+      const message =
+        error?.response?.status === 409
+          ? "Conflito: um ou mais IMEIs já pertencem a outro produto."
+          : "Não foi possível atualizar os IMEIs/seriais deste produto.";
+      setOpenNotification({
+        type: "error",
+        title: "Erro",
+        notification: message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="mt-2">
@@ -73,7 +154,7 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
             {imeis.length} {labelType}
           </span>
         ) : (
-          <span>Ver {labelType}</span>
+          <span>Gerenciar {labelType}</span>
         )}
         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
@@ -114,6 +195,52 @@ export function ProductImeis({ invoiceProductId, productName }: ProductImeisProp
                     </button>
                   </div>
                 ))}
+              </div>
+              <div className="mt-3 border-t pt-3 space-y-2">
+                <textarea
+                  value={draftInput}
+                  onChange={(e) => setDraftInput(e.target.value)}
+                  rows={3}
+                  placeholder="Cole IMEIs/seriais separados por vírgula, ponto e vírgula, dois pontos, espaço ou quebra de linha"
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+                />
+                <div className="text-[11px] text-gray-500">
+                  Formato aceito: IMEI (15 dígitos) ou serial alfanumérico (10–15, com letra e número).
+                </div>
+                {draftInput.trim() && (
+                  <div className="text-[11px] text-gray-600">
+                    Prévia: {preview.addCount} novo(s), {preview.duplicateCount} duplicado(s), {preview.invalidCount} inválido(s).
+                    {preview.invalidSamples.length > 0 ? ` Inválidos: ${preview.invalidSamples.join(", ")}.` : ""}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => updateImeis("merge")}
+                    className="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    {isSaving ? <Loader2 size={12} className="animate-spin inline mr-1" /> : null}
+                    Somar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => updateImeis("replace")}
+                    className="flex-1 px-2 py-1.5 bg-purple-600 text-white rounded text-xs hover:bg-purple-700 disabled:bg-gray-400"
+                  >
+                    Substituir
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSaving}
+                    onClick={() => updateImeis("clear")}
+                    className="px-2 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 disabled:bg-gray-400"
+                    title="Limpar todos"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
             </>
           )}
