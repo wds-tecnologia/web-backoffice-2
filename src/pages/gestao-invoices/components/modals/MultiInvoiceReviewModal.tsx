@@ -118,6 +118,8 @@ export function MultiInvoiceReviewModal({
   const [showSupplierLinkPopup, setShowSupplierLinkPopup] = useState(false);
   const [pendingSupplierId, setPendingSupplierId] = useState<string>("");
   const [afiImeiInputByRow, setAfiImeiInputByRow] = useState<Record<string, string>>({});
+  const [editingImeiKey, setEditingImeiKey] = useState<string | null>(null);
+  const [editingImeiValue, setEditingImeiValue] = useState("");
 
   const currentData = editedDataList[activeTabIndex];
   const isAfiCurrentInvoice = AFI_SUPPLIER_REGEX.test(String(currentData?.invoiceData?.pdfSupplierName ?? ""));
@@ -413,6 +415,85 @@ export function MultiInvoiceReviewModal({
       };
       return next;
     });
+  };
+
+  const isValidImeiOrSerial = (value: string) =>
+    /^\d{15}$/.test(value) || /^(?=.*[A-Z])(?=.*\d)[A-Z0-9]{10,15}$/i.test(value);
+
+  const normalizeImeiOrSerial = (value: string) =>
+    /^\d{15}$/.test(value) ? value : value.toUpperCase();
+
+  const updateCurrentProductImei = (productIndex: number, originalIndex: number, nextValue: string) => {
+    setEditedDataList((prev) => {
+      const next = [...prev];
+      if (!next[activeTabIndex]) return prev;
+      const products = [...next[activeTabIndex].products];
+      const currentImeis = [...(products[productIndex]?.imeis || [])];
+      currentImeis[originalIndex] = nextValue;
+      products[productIndex] = { ...products[productIndex], imeis: currentImeis };
+      next[activeTabIndex] = { ...next[activeTabIndex], products };
+      return next;
+    });
+  };
+
+  const removeCurrentProductImei = (productIndex: number, originalIndex: number) => {
+    setEditedDataList((prev) => {
+      const next = [...prev];
+      if (!next[activeTabIndex]) return prev;
+      const products = [...next[activeTabIndex].products];
+      const currentImeis = [...(products[productIndex]?.imeis || [])];
+      currentImeis.splice(originalIndex, 1);
+      products[productIndex] = { ...products[productIndex], imeis: currentImeis };
+      next[activeTabIndex] = { ...next[activeTabIndex], products };
+      return next;
+    });
+  };
+
+  const confirmAndRemoveCurrentProductImei = async (productIndex: number, originalIndex: number) => {
+    const result = await Swal.fire({
+      icon: "warning",
+      title: "Remover IMEI/serial?",
+      text: "Essa ação remove apenas este item da lista atual.",
+      showCancelButton: true,
+      confirmButtonText: "Remover",
+      cancelButtonText: "Cancelar",
+      buttonsStyling: false,
+      customClass: {
+        confirmButton: "bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded font-semibold mr-2",
+        cancelButton: "bg-gray-300 text-gray-700 hover:bg-gray-400 px-4 py-2 rounded font-semibold",
+      },
+    });
+    if (!result.isConfirmed) return;
+    removeCurrentProductImei(productIndex, originalIndex);
+  };
+
+  const startImeiEdit = (productIndex: number, originalIndex: number, value: string) => {
+    setEditingImeiKey(`${activeTabIndex}-${productIndex}-${originalIndex}`);
+    setEditingImeiValue(value);
+  };
+
+  const saveImeiEdit = async (productIndex: number, originalIndex: number, silent = false) => {
+    const normalized = normalizeImeiOrSerial(editingImeiValue.trim());
+    if (!isValidImeiOrSerial(normalized)) {
+      if (!silent) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Valor inválido",
+          text: "Use IMEI (15 dígitos) ou serial alfanumérico de 10 a 15 caracteres com letra e número.",
+          confirmButtonText: "Ok",
+          buttonsStyling: false,
+          customClass: {
+            confirmButton: "bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded font-semibold",
+          },
+        });
+      }
+      setEditingImeiKey(null);
+      setEditingImeiValue("");
+      return;
+    }
+    updateCurrentProductImei(productIndex, originalIndex, normalized);
+    setEditingImeiKey(null);
+    setEditingImeiValue("");
   };
 
   const handleSaveThisInvoice = async () => {
@@ -1198,6 +1279,14 @@ export function MultiInvoiceReviewModal({
                                       if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
                                       return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
                                     });
+                                    const displayImeiEntries = product.imeis
+                                      .map((s, originalIndex) => ({ value: String(s), originalIndex }))
+                                      .filter(({ value }) => {
+                                        const str = String(value);
+                                        if (/^\d{15}$/.test(str)) return true;
+                                        if (!/^[A-Z0-9]{10,15}$/i.test(str)) return false;
+                                        return !/GB|SILVER|BLACK|BLUE|WHITE|PINK|GREEN|ORANGE|RED|GOLD|MIDNIGHT|STARLIGHT/i.test(str);
+                                      });
                                     const popupLabel = displayImeis.length > 0 ? `${displayImeis.length} ${labelType}` : "Adicionar IMEIs/Seriais";
                                     const livePreview = previewIdentifiersInput(
                                       product.imeis || [],
@@ -1295,17 +1384,53 @@ export function MultiInvoiceReviewModal({
                                           
                                           <div className="bg-gray-50 border border-gray-200 rounded-md p-3 max-h-48 overflow-y-auto">
                                             <div className="flex flex-wrap gap-2">
-                                              {displayImeis.length === 0 ? (
+                                              {displayImeiEntries.length === 0 ? (
                                                 <span className="text-xs text-gray-500">Nenhum IMEI/serial informado.</span>
                                               ) : (
-                                                displayImeis.map((imei, imeiIdx) => (
-                                                  <span
-                                                    key={imeiIdx}
-                                                    className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono"
-                                                  >
-                                                    {imei}
-                                                  </span>
-                                                ))
+                                                displayImeiEntries.map((entry) => {
+                                                  const chipKey = `${activeTabIndex}-${productIndex}-${entry.originalIndex}`;
+                                                  const isEditing = editingImeiKey === chipKey;
+                                                  return (
+                                                    <div
+                                                      key={chipKey}
+                                                      className="relative px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-mono border border-blue-200"
+                                                      onDoubleClick={() =>
+                                                        startImeiEdit(productIndex, entry.originalIndex, entry.value)
+                                                      }
+                                                      title="Duplo clique para editar"
+                                                    >
+                                                      {isEditing ? (
+                                                        <input
+                                                          value={editingImeiValue}
+                                                          autoFocus
+                                                          onChange={(e) => setEditingImeiValue(e.target.value)}
+                                                          onBlur={() => saveImeiEdit(productIndex, entry.originalIndex, true)}
+                                                          onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                              e.preventDefault();
+                                                              saveImeiEdit(productIndex, entry.originalIndex);
+                                                            }
+                                                            if (e.key === "Escape") {
+                                                              setEditingImeiKey(null);
+                                                              setEditingImeiValue("");
+                                                            }
+                                                          }}
+                                                          className="w-24 bg-white border border-blue-300 rounded px-1 text-[11px]"
+                                                        />
+                                                      ) : (
+                                                        <span>{entry.value}</span>
+                                                      )}
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => confirmAndRemoveCurrentProductImei(productIndex, entry.originalIndex)}
+                                                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-600 text-white text-[10px] leading-4 hover:bg-red-700"
+                                                        title="Remover IMEI/serial"
+                                                      >
+                                                        ×
+                                                      </button>
+                                                    </div>
+                                                  );
+                                                })
                                               )}
                                                 </div>
                                               </div>
