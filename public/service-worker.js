@@ -14,32 +14,32 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       const cacheNames = await caches.keys();
-      let deletedAny = false;
       await Promise.all(
         cacheNames.map((name) => {
-          if (!name.startsWith(CACHE_NAME)) {
+          if (!name.startsWith('pet-store-cache-')) {
             console.log(`🧹 Deletando cache antigo: ${name}`);
-            deletedAny = true;
             return caches.delete(name);
           }
         })
       );
 
       await self.clients.claim();
-
-      // 🔄 Só notifica reload quando houve atualização (caches antigos deletados), não na primeira instalação (evita reload que quebra login)
-      if (deletedAny) {
-        const clients = await self.clients.matchAll({ includeUncontrolled: true });
-        clients.forEach((client) => {
-          client.postMessage({ type: 'RELOAD_PAGE' });
-        });
-      }
     })()
   );
 });
 
-// 🌐 Intercepta requisições e sempre busca da rede
+// 🌐 Intercepta apenas requisições same-origin (navegação)
+// Requisições cross-origin (API calls) são ignoradas para não interferir com CORS
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Deixa o browser lidar com tudo que não é same-origin
+  // (chamadas de API, CDN, etc.) — não chamar respondWith = comportamento padrão
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
+  // Para same-origin, passa direto pela rede sem cache
   event.respondWith(fetch(event.request));
 });
 
