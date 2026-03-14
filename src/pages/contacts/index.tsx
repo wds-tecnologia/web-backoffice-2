@@ -274,7 +274,7 @@ const Contacts: React.FC = () => {
       }
 
       await api.patch(
-        `/graphic/${row.idGraphic}/status`,
+        `/graphic/status/${row.idGraphic}`,
         { status: nextStatus },
         {
           headers: {
@@ -296,8 +296,14 @@ const Contacts: React.FC = () => {
       );
       setSeverity("success");
       setOpen(true);
-    } catch (error) {
-      setMessage(`Erro ao atualizar status do usuário ${row.userName}.`);
+    } catch (error: any) {
+      const backendMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.response?.data?.details ||
+        `Erro ao atualizar status do usuário ${row.userName}.`;
+
+      setMessage(backendMessage);
       setSeverity("error");
       setOpen(true);
     }
