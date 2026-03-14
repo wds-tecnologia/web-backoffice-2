@@ -273,21 +273,19 @@ const Contacts: React.FC = () => {
         return;
       }
 
-      try {
-        await api.patch(
-          `/graphic/status/${row.idGraphic}`,
-          { status: nextStatus },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          },
-        );
-      } catch (primaryError: any) {
-        // Compatibilidade com backend que ainda expõe somente /graphic/:id/status
-        if (primaryError?.response?.status === 404) {
+      const candidateRoutes = [
+        `/graphic/status/${row.idGraphic}`,
+        `/graphic/${row.idGraphic}/status`,
+        `/status/${row.idGraphic}`,
+      ];
+
+      let updated = false;
+      let lastError: any = null;
+
+      for (const route of candidateRoutes) {
+        try {
           await api.patch(
-            `/graphic/${row.idGraphic}/status`,
+            route,
             { status: nextStatus },
             {
               headers: {
@@ -295,9 +293,18 @@ const Contacts: React.FC = () => {
               },
             },
           );
-        } else {
-          throw primaryError;
+          updated = true;
+          break;
+        } catch (err: any) {
+          lastError = err;
+          if (err?.response?.status !== 404) {
+            throw err;
+          }
         }
+      }
+
+      if (!updated) {
+        throw lastError || new Error("Nenhuma rota de atualização de status disponível.");
       }
 
       setRows((prevRows) =>
@@ -318,6 +325,9 @@ const Contacts: React.FC = () => {
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         error?.response?.data?.details ||
+        (error?.response?.status === 404
+          ? "Rota de atualização de status não encontrada no backend. Verifique se o backend mais recente foi publicado."
+          : "") ||
         `Erro ao atualizar status do usuário ${row.userName}.`;
 
       setMessage(backendMessage);
