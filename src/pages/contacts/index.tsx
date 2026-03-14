@@ -22,12 +22,18 @@ import CloseIcon from "@mui/icons-material/Close";
 import ComputerIcon from "@mui/icons-material/Computer";
 import SmartphoneIcon from "@mui/icons-material/Smartphone";
 
+type StatusFilter = "ALL" | "PENDING" | "ACTIVE" | "INACTIVE";
+
 interface RowData {
+  idGraphic: string;
   userName: string;
   id: number;
   name: string;
-  age: number;
-  accessLevel: "admin" | "manager" | "user";
+  status: string;
+  created_at: string;
+  role: string;
+  blocked: boolean;
+  counter: number;
   connectedDevices: number; // Nova propriedade para dispositivos conectados
   devices: { type: string; browser: string; lastActive: string }[]; // Nova propriedade para dispositivos
 }
@@ -45,6 +51,9 @@ const Contacts: React.FC = () => {
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<RowData | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+
+  const normalizeStatus = (status?: string) => String(status || "").trim().toUpperCase();
 
   const columns = [
     { field: "id", headerName: "Nº", flex: 0.4, headerAlign: "center" as const, align: "center" as const },
@@ -115,6 +124,25 @@ const Contacts: React.FC = () => {
       align: "center" as const,
       renderCell: (params: any) => (
         <Box display="inline-flex" gap={0.5} alignItems="center" flexDirection={{ xs: "column", sm: "row" }} p={0}>
+          <Button
+            variant="outlined"
+            color={params.row.status?.toUpperCase() === "ACTIVE" ? "secondary" : "success"}
+            size="small"
+            onClick={() => handleToggleStatus(params.row)}
+            sx={{
+              fontSize: { xs: "0.65rem", sm: "0.7rem" },
+              minWidth: "70px",
+              px: 0.5,
+              height: "36px",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textTransform: "none",
+            }}
+          >
+            {params.row.status?.toUpperCase() === "ACTIVE" ? "Desativar" : "Ativar"}
+          </Button>
           <Button
             variant="outlined"
             color="warning"
@@ -235,6 +263,46 @@ const Contacts: React.FC = () => {
       }
   };
 
+  const handleToggleStatus = async (row: RowData) => {
+    const nextStatus = row.status?.toUpperCase() === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+
+    try {
+      const token = localStorage.getItem("@backoffice:token");
+      if (!token) {
+        console.error("Token não encontrado!");
+        return;
+      }
+
+      await api.patch(
+        `/graphic/${row.idGraphic}/status`,
+        { status: nextStatus },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      setRows((prevRows) =>
+        prevRows.map((item) =>
+          item.idGraphic === row.idGraphic ? { ...item, status: nextStatus } : item,
+        ),
+      );
+
+      setMessage(
+        nextStatus === "ACTIVE"
+          ? `Usuário ${row.userName} ativado com sucesso.`
+          : `Usuário ${row.userName} desativado com sucesso.`,
+      );
+      setSeverity("success");
+      setOpen(true);
+    } catch (error) {
+      setMessage(`Erro ao atualizar status do usuário ${row.userName}.`);
+      setSeverity("error");
+      setOpen(true);
+    }
+  };
+
   // Função que será chamada ao clicar no botão de delete
   const   handleDelete = async (userName: string) => {
     try {
@@ -301,6 +369,7 @@ const Contacts: React.FC = () => {
           let devices: { type: string; browser: string; lastActive: string }[] = [];
 
           return {
+            idGraphic: item.id,
             id: index + 1,
             name: item.name,
             userName: item.userName,
@@ -326,8 +395,30 @@ const Contacts: React.FC = () => {
     return <ContactsMobile />;
   }
 
-  // Filtragem dos usuários pelo campo de busca
-  const filteredRows = rows.filter((row) => row.userName.toLowerCase().includes(search.toLowerCase()));
+  const pendingCount = rows.filter((row) => normalizeStatus(row.status).startsWith("PENDING")).length;
+  const activeCount = rows.filter((row) => normalizeStatus(row.status) === "ACTIVE").length;
+  const inactiveCount = rows.filter((row) => normalizeStatus(row.status) === "INACTIVE").length;
+
+  // Prioriza pendentes no topo para facilitar aprovação operacional
+  const rowsOrderedByPriority = [...rows].sort((a, b) => {
+    const aPending = normalizeStatus(a.status).startsWith("PENDING") ? 0 : 1;
+    const bPending = normalizeStatus(b.status).startsWith("PENDING") ? 0 : 1;
+
+    if (aPending !== bPending) return aPending - bPending;
+    return a.id - b.id;
+  });
+
+  const filteredRows = rowsOrderedByPriority
+    .filter((row) => row.userName.toLowerCase().includes(search.toLowerCase()))
+    .filter((row) => {
+      const normalizedStatus = normalizeStatus(row.status);
+
+      if (statusFilter === "PENDING") return normalizedStatus.startsWith("PENDING");
+      if (statusFilter === "ACTIVE") return normalizedStatus === "ACTIVE";
+      if (statusFilter === "INACTIVE") return normalizedStatus === "INACTIVE";
+
+      return true;
+    });
 
   return (
     <Box m="20px">
@@ -356,6 +447,39 @@ const Contacts: React.FC = () => {
             <path d="M21 21l-2-2" />
           </svg>
         </span>
+      </Box>
+      <Box mb={2} display="flex" gap={1} flexWrap="wrap">
+        <Button
+          variant={statusFilter === "ALL" ? "contained" : "outlined"}
+          size="small"
+          onClick={() => setStatusFilter("ALL")}
+        >
+          Todos ({rows.length})
+        </Button>
+        <Button
+          variant={statusFilter === "PENDING" ? "contained" : "outlined"}
+          color="warning"
+          size="small"
+          onClick={() => setStatusFilter("PENDING")}
+        >
+          Pendentes ({pendingCount})
+        </Button>
+        <Button
+          variant={statusFilter === "ACTIVE" ? "contained" : "outlined"}
+          color="success"
+          size="small"
+          onClick={() => setStatusFilter("ACTIVE")}
+        >
+          Ativos ({activeCount})
+        </Button>
+        <Button
+          variant={statusFilter === "INACTIVE" ? "contained" : "outlined"}
+          color="secondary"
+          size="small"
+          onClick={() => setStatusFilter("INACTIVE")}
+        >
+          Inativos ({inactiveCount})
+        </Button>
       </Box>
       <Box
         m="40px 0 0 0"
