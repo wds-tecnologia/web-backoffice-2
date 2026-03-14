@@ -273,15 +273,32 @@ const Contacts: React.FC = () => {
         return;
       }
 
-      await api.patch(
-        `/graphic/status/${row.idGraphic}`,
-        { status: nextStatus },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+      try {
+        await api.patch(
+          `/graphic/status/${row.idGraphic}`,
+          { status: nextStatus },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           },
-        },
-      );
+        );
+      } catch (primaryError: any) {
+        // Compatibilidade com backend que ainda expõe somente /graphic/:id/status
+        if (primaryError?.response?.status === 404) {
+          await api.patch(
+            `/graphic/${row.idGraphic}/status`,
+            { status: nextStatus },
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+        } else {
+          throw primaryError;
+        }
+      }
 
       setRows((prevRows) =>
         prevRows.map((item) =>
